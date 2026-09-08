@@ -1,0 +1,2 @@
+APP_NAME = "JARVIS"
+APP_VERSION = "1.0.0"
