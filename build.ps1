@@ -11,7 +11,11 @@ $python = "python"
 New-Item -ItemType Directory -Force -Path .\dist\JarvisPackage | Out-Null
 Copy-Item .\dist\Jarvis.exe .\dist\JarvisPackage\Jarvis.exe -Force
 foreach ($file in @("Alam_data.txt", "input.txt", "log.txt", "schedule.txt", "voice_state.txt")) {
-    Copy-Item ".\$file" ".\dist\JarvisPackage\$file" -Force
+    if (Test-Path ".\$file") {
+        Copy-Item ".\$file" ".\dist\JarvisPackage\$file" -Force
+    } elseif ($file -eq "voice_state.txt") {
+        Set-Content ".\dist\JarvisPackage\$file" "IDLE" -NoNewline
+    }
 }
 
 Write-Host "Package created at $((Resolve-Path .\dist\JarvisPackage).Path)"

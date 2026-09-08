@@ -11,7 +11,6 @@ analysis = Analysis(
         ("input.txt", "."),
         ("log.txt", "."),
         ("schedule.txt", "."),
-        ("voice_state.txt", "."),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
