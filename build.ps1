@@ -1,10 +1,12 @@
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
-$python = "py"
+$python = "python"
 
-& $python -3.12 -m pip install --upgrade pyinstaller
-& $python -3.12 -m PyInstaller --noconfirm --clean .\Jarvis.spec
+& $python -m pip install --upgrade pip
+& $python -m pip install -r .\requirements.txt
+& $python -m pip install --upgrade pyinstaller
+& $python -m PyInstaller --noconfirm --clean .\Jarvis.spec
 
 New-Item -ItemType Directory -Force -Path .\dist\JarvisPackage | Out-Null
 Copy-Item .\dist\Jarvis.exe .\dist\JarvisPackage\Jarvis.exe -Force
