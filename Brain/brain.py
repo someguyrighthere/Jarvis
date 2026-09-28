@@ -37,6 +37,39 @@ def _record_turn(query, response):
     return response
 
 
+# When Sara cannot produce a real answer, or the model itself admits it can't help,
+# we remember the original request so co_brain.py can offer to build a reusable tool
+# for it and act on a simple "yes" from the user.
+_capability_gap_request = None
+
+_TOOL_OFFER = (
+    " Would you like me to build a reusable tool so I can handle this kind of request going forward?"
+)
+
+_REFUSAL_PATTERN = re.compile(
+    r"\b(i can(?:no|')t|i am unable to|i'?m unable to|i do not have the ability|"
+    r"i don'?t have the ability|i'?m not able to|i am not able to|i have no way to|"
+    r"outside (?:of )?my capabilities|beyond my current capabilities)\b",
+    re.IGNORECASE,
+)
+
+
+def _flag_capability_gap(request):
+    global _capability_gap_request
+    _capability_gap_request = request
+
+
+def pop_capability_gap():
+    global _capability_gap_request
+    request = _capability_gap_request
+    _capability_gap_request = None
+    return request
+
+
+def _looks_like_refusal(answer):
+    return bool(_REFUSAL_PATTERN.search(answer))
+
+
 def _ask_llm(query, web_context=""):
     preference_text = format_preferences()
     knowledge_context = format_knowledge(retrieve_knowledge(query))
@@ -122,6 +155,9 @@ def Main_Brain(text):
     web_context = format_search_context(search_web(query))
     llm_answer = _ask_llm(query, web_context)
     if llm_answer:
+        if _looks_like_refusal(llm_answer):
+            _flag_capability_gap(query)
+            llm_answer = llm_answer.rstrip() + _TOOL_OFFER
         return _record_turn(query, llm_answer)
 
     search_query = re.sub(r"^(what(?:'s| is)|what are|who is|who are|tell me about)\s+", "", query).strip()
@@ -141,5 +177,10 @@ def Main_Brain(text):
     except Exception as e:
         pass
 
-    return _record_turn(query, f"I couldn't find a reliable answer for '{search_query}'. Give me a sharper question and I'll take another run at it.")
+    _flag_capability_gap(query)
+    return _record_turn(
+        query,
+        f"I couldn't find a reliable answer for '{search_query}'."
+        + _TOOL_OFFER,
+    )
 

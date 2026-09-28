@@ -51,7 +51,8 @@ def clear_file():
         file.truncate(0)
 
 def Auto_main_brain(text):
-   try: 
+   matched = True
+   try:
     if text.startswith("open"):
         Open_Brain(text)
     elif text.startswith("close") or text.startswith("shut down"):
@@ -109,10 +110,12 @@ def Auto_main_brain(text):
     elif "play" in text or "stop" in text or "pause" in text:
         play()
     else:
-        perform_browser_action(text)
-        perform_media_action(text)
-        perform_scroll_action(text)
-        
+        matched = (
+            perform_browser_action(text)
+            or perform_media_action(text)
+            or perform_scroll_action(text)
+        )
    except Exception as e:
-       print("error : " + e)
-       
+       print("error : " + str(e))
+       return False
+   return matched

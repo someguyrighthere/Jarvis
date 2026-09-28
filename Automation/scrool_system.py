@@ -26,5 +26,6 @@ def perform_scroll_action(text):
     elif "scroll to bottom" in text or "ant par jao" in text:
         scroll_to_bottom()
     else:
-        pass
+        return False
+    return True
 

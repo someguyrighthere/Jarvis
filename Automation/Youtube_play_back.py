@@ -82,5 +82,6 @@ def perform_media_action(text):
     elif "move to previous video" in text or "previous video par jao" in text:
         move_to_previous_video()
     else:
-        pass
+        return False
+    return True
 

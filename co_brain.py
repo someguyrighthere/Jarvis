@@ -8,7 +8,7 @@ from Data.DLG_Data import online_dlg,offline_dlg
 import random
 from Automation.Battery import battery_Alert
 from Time_Operations.brain import input_manage,input_manage_Alam
-from Brain.brain import Main_Brain, reset_conversation
+from Brain.brain import Main_Brain, pop_capability_gap, reset_conversation
 from Features.create_file import create_file
 from Vision.Vbrain import *
 from Vision.MVbrain import *
@@ -35,7 +35,7 @@ from task_workflow import handle_task_command
 from system_admin import handle_system_command
 from extension_workflow import create_extension_proposal, handle_extension_command, should_propose_extension
 from project_workflow import handle_project_command
-from tool_workflow import handle_tool_command, run_registered_tool
+from tool_workflow import create_tool_project, handle_tool_command, run_registered_tool
 from version import APP_NAME, WAKE_WORD_PATTERN
 import re
 
@@ -67,6 +67,30 @@ def _end_follow_up_window():
     reset_conversation()
 
 
+# When Sara can't answer a question or complete a task, she offers to build a
+# reusable tool for it. We remember that pending offer so the very next thing the
+# user says can be a plain "yes"/"no" instead of a fresh "Sara, create a tool..." command.
+_pending_tool_offer = None
+_AFFIRMATIVE_PATTERN = re.compile(
+    r"^(?:yes|yeah|yep|yup|sure|please do|go ahead|do it|okay|ok|sounds good|please|affirmative)\b"
+)
+_NEGATIVE_PATTERN = re.compile(
+    r"^(?:no|nope|nah|not now|don'?t bother|negative|no thanks|no thank you)\b"
+)
+
+
+def _offer_tool_for(request):
+    global _pending_tool_offer
+    _pending_tool_offer = request
+
+
+def _pop_tool_offer():
+    global _pending_tool_offer
+    request = _pending_tool_offer
+    _pending_tool_offer = None
+    return request
+
+
 def check_inputs():
     last_input = ""
     while True:
@@ -80,7 +104,13 @@ def check_inputs():
             output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
             if output_text and not is_stop_command(output_text):
                 set_voice_state("PROCESSING")
-            if is_stop_command(output_text):
+            pending_tool_offer = _pop_tool_offer()
+            if pending_tool_offer and _AFFIRMATIVE_PATTERN.match(output_text):
+                speak(create_tool_project(pending_tool_offer))
+                _extend_follow_up_window()
+            elif pending_tool_offer and _NEGATIVE_PATTERN.match(output_text):
+                speak("Understood. I will not build a tool for that.")
+            elif is_stop_command(output_text):
                 _end_follow_up_window()
                 stop_speaking()
             elif (task_response := handle_task_command(output_text)) is not None:
@@ -191,6 +221,9 @@ def check_inputs():
                         f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
                     speak(response)
                     _extend_follow_up_window()
+                    gap_request = pop_capability_gap()
+                    if gap_request:
+                        _offer_tool_for(gap_request)
                 except Exception as e:
                     print(f"Error processing {APP_NAME.title()} command: {e}")
                     speak("Sorry, I encountered an error processing your request")
@@ -253,7 +286,11 @@ def check_inputs():
             elif has_wake_word and should_propose_extension(output_text):
                 speak(create_extension_proposal(output_text))
             else:
-                Auto_main_brain(output_text)
+                handled = Auto_main_brain(output_text)
+                if not handled and (has_wake_word or is_follow_up):
+                    _offer_tool_for(output_text)
+                    speak("I don't have a way to handle that yet. Would you like me to build a reusable tool for it?")
+                    _extend_follow_up_window()
 
             if output_text and not is_stop_command(output_text):
                 set_voice_state("IDLE")

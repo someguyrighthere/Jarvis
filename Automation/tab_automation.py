@@ -77,4 +77,5 @@ def perform_browser_action(text):
     elif "open private window" in text or "private window kholo" in text:
         open_private_window()
     else:
-        pass
+        return False
+    return True
