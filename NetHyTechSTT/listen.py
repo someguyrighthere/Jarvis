@@ -18,23 +18,26 @@ def set_voice_state(state):
         VOICE_STATE_PATH.write_text(state, encoding="utf-8")
     except OSError:
         pass
-# Setting up Chrome options with specific arguments
-chrome_options = Options()
-chrome_options.add_argument("--use-fake-ui-for-media-stream")
-chrome_options.add_argument("--headless=old")  # Remove this if you want to see the browser UI
-# Manually set the path to the ChromeDriver executable
-service = Service(ChromeDriverManager().install())
-# Setting up the Chrome driver with the service and options (auto-managed)
-driver = webdriver.Chrome(service=service, options=chrome_options)
-# Creating the URL for the website using the current working directory
 website = "https://allorizenproject1.netlify.app/"
-# Opening the website in the Chrome browser
-driver.get(website)
 Recog_File = f"{getcwd()}\\input.txt"
+
+
+def create_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--use-fake-ui-for-media-stream")
+    chrome_options.add_argument("--headless=new")
+    service = Service(ChromeDriverManager().install())
+    browser = webdriver.Chrome(service=service, options=chrome_options)
+    browser.get(website)
+    return browser
+
+
 def listen():
     print("Support in Youtube @NetHyTech")
     set_voice_state("LISTENING")
+    driver = None
     try:
+        driver = create_driver()
         start_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.ID, 'startButton')))
         start_button.click()
         print("Listening...")
@@ -58,5 +61,9 @@ def listen():
     except Exception as e:
         print("An error occurred:", e)
     finally:
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception as e:
+                print("Could not close speech recognition browser:", e)
         set_voice_state("IDLE")
-        driver.quit()

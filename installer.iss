@@ -1,6 +1,6 @@
-#define AppName "JARVIS"
-#define AppVersion "1.0.0"
-#define AppPublisher "JARVIS"
+#define AppName "SARA"
+#define AppVersion "1.0.3"
+#define AppPublisher "SARA"
 #define AppExeName "Jarvis.exe"
 
 [Setup]
@@ -27,8 +27,8 @@ Source: "dist\JarvisPackage\schedule.txt"; DestDir: "{app}"; Flags: onlyifdoesnt
 Source: "dist\JarvisPackage\voice_state.txt"; DestDir: "{app}"; Flags: onlyifdoesntexist
 
 [Icons]
-Name: "{group}\JARVIS"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\JARVIS"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+Name: "{group}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch JARVIS"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch SARA"; Flags: nowait postinstall skipifsilent

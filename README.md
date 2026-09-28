@@ -1,4 +1,4 @@
-# J.A.R.V.I.S - Just A Rather Very Intelligent System 🤖
+# Sara - Desktop AI Assistant
 
 [![LinkedIn][linkedin-shield]][linkedin-url]
 [![Instagram][instagram-shield]][instagram-url]
@@ -6,8 +6,8 @@
 [![YouTube][youtube-shield]][youtube-url]
 [![Telegram][telegram-shield]][telegram-url]
 
-**Welcome to J.A.R.V.I.S!**  
-J.A.R.V.I.S (Just A Rather Very Intelligent System) is an advanced AI assistant inspired by Iron Man's Jarvis, designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
+**Welcome to Sara!**  
+Sara is a desktop AI assistant designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
 
 ![image](https://github.com/user-attachments/assets/59727c15-d85a-41bc-b27d-bea08b3b3a41)
 
@@ -16,7 +16,7 @@ J.A.R.V.I.S (Just A Rather Very Intelligent System) is an advanced AI assistant 
 ### Windows installer
 Download the latest `JARVIS-Setup-*.exe` from the repository's GitHub Releases page and run it. The installer creates a desktop shortcut and installs the HUD as the main app.
 
-To update JARVIS, run the newer installer over the existing installation. It replaces the app executable while preserving your conversation log, schedules, input state, and preferences.
+To update Sara, run the newer installer over the existing installation. It replaces the app executable while preserving your conversation log, schedules, input state, and preferences.
 
 The installed app still requires Google Chrome for speech recognition and Ollama for local LLM answers. These are external dependencies and are not bundled into the installer.
 
@@ -49,15 +49,15 @@ py -3.12 ui.py
 On Windows, install Inno Setup, then run:
 ```powershell
 .\build.ps1
-iscc .\installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" .\installer.iss
 ```
 
 The installer is also built automatically by `.github/workflows/release.yml` whenever a `v*` tag is pushed.
 
-Use **Start Jarvis** and **Stop** in the panel to control the assistant. The panel shows the current Ollama model, voice, and recent conversation log.
+Use **Start** and **Stop** in the panel to control Sara. The panel shows the current Ollama model, voice, and recent conversation log. Say “Sara” before a command to address the assistant.
 
 ### Local AI answers with Ollama
-Jarvis uses Ollama locally for general questions. Install Ollama from `https://ollama.com/download/windows`, then run these commands:
+Sara uses Ollama locally for general questions. Install Ollama from `https://ollama.com/download/windows`, then run these commands:
 
 PowerShell:
 ```powershell
@@ -66,26 +66,67 @@ $env:OLLAMA_MODEL = "llama3.2"
 py -3.12 jarvis.py
 ```
 
-Ollama runs on your computer and does not require an API key or subscription. Local commands such as weather and opening applications continue to use Jarvis's local handlers.
+Ollama runs on your computer and does not require an API key or subscription. Local commands such as weather and opening applications continue to use Sara's local handlers.
 
-Jarvis uses the Microsoft `en-GB-SoniaNeural` British female voice for more natural speech when internet access is available, and falls back to the installed Windows voice when it is not.
+Sara uses Piper's local British English `en_GB-alba-medium` voice. The voice is downloaded on first use and then works offline. If Piper cannot load the model, Windows SAPI is used as a fallback.
 
-### Controlled learning
-Jarvis can remember preferences without changing its source code:
+Piper's runtime is GPL-3.0-or-later. The Alba voice model is CC-BY 4.0 and is based on the Edinburgh speech dataset. See the [voice model card](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium) for attribution and details.
+
+### Web research
+For general questions, Sara searches the web through DuckDuckGo and gives the local Ollama model the result snippets as reference material. This lets it answer questions about newer information without changing or retraining the model. Web results are treated as untrusted text and are not executed. To permanently save a personal preference, use the `remember` command.
+
+Sara also has a local retrieval-augmented knowledge base. After researching a topic, explicitly save a fact with commands such as `Sara, learn this: Python uses indentation to define code blocks`. Relevant saved facts are automatically retrieved for later questions. Say `Sara, clear learned knowledge` to remove that knowledge without removing personal preferences.
+
+### System monitoring and updates
+Sara can report local hardware usage, active network interfaces, and Microsoft Defender status on request:
 
 ```text
-Jarvis, remember that my preferred temperature unit is Fahrenheit
-Jarvis, what do you remember about me?
-Jarvis, forget what you remember
+Sara, check system health
+Sara, check my network
+Sara, check security
+Sara, scan for threats
+Sara, check for updates
+Sara, update drivers and software
+```
+
+These checks are on demand and limited to this computer. A quick scan uses Microsoft Defender. The update command installs available Windows driver updates and upgrades packages managed by `winget`; it accepts package agreements and may require Windows elevation or a restart. Sara does not run these updates in the background, and an unavailable update source is reported rather than treated as a successful check.
+
+### Controlled learning
+Sara can remember preferences without changing its source code:
+
+```text
+Sara, remember that my preferred temperature unit is Fahrenheit
+Sara, remember not to say the word asterisk when speaking to me
+Sara, what do you remember about me?
+Sara, forget what you remember
 ```
 
 To request a code improvement, say:
 
 ```text
-Jarvis, improve yourself by using Fahrenheit in weather responses
+Sara, improve yourself by using Fahrenheit in weather responses
 ```
 
-Jarvis saves the request in `improvement_request.json` for review. It does not edit or execute source-code changes automatically.
+### Tasks and plans
+Sara can keep a local task list and draft a checklist for a goal. Proposed plan steps are only added to the task list after approval:
+
+```text
+Sara, add task to review the project budget
+Sara, show my tasks
+Sara, complete task 1
+Sara, plan a website launch
+Sara, approve plan
+```
+
+Say `Sara, cancel plan` to discard a proposed checklist. Plans organize work; Sara does not execute the listed actions automatically.
+
+Sara creates a proposed change using the local Ollama model and does not edit source code yet. Review the proposal, then say:
+
+```text
+Sara, approve this improvement
+```
+
+Approved changes are limited to one Python source file, syntax-checked, and backed up in `self_update_backups` before they are applied. If Ollama is unavailable, Sara saves the request for manual review instead.
 
 ## Contribution 🤝
 Feel free to fork the repository, submit issues, or create pull requests. Your contributions are welcome!

@@ -1,9 +1,22 @@
-import pyaudio
-import numpy as np
 import time
 from TextToSpeech.Fast_DF_TTS import speak
 
+try:
+    import pyaudio
+    import numpy as np
+    PYAUDIO_AVAILABLE = True
+except Exception:
+    # PyAudio (or numpy) not available; provide graceful fallback
+    import numpy as np
+    PYAUDIO_AVAILABLE = False
+
+
 def get_mic_health(seconds=5, initial_threshold=500):
+    if not PYAUDIO_AVAILABLE:
+        return {
+            'error': 'PyAudio not installed. Install PyAudio to enable microphone health checks.'
+        }
+
     CHUNK = 1024  # Audio chunk size
     FORMAT = pyaudio.paInt16  # 16-bit resolution
     CHANNELS = 1  # Mono audio
@@ -32,9 +45,8 @@ def get_mic_health(seconds=5, initial_threshold=500):
     for _ in range(0, int(RATE / CHUNK * seconds)):
         data = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
         volume = np.linalg.norm(data)
-        
+
         # Frequency analysis (FFT)
-        freqs = np.fft.fftfreq(len(data))
         fft_spectrum = np.abs(np.fft.fft(data))
         freq_analysis.append(fft_spectrum)
 
@@ -83,7 +95,16 @@ def get_mic_health(seconds=5, initial_threshold=500):
 
     return health_report
 
+
 def mike_health():
+    if not PYAUDIO_AVAILABLE:
+        speak('Microphone health check unavailable: PyAudio is not installed.')
+        return
+
     health_metrics = get_mic_health(seconds=5)
+    if isinstance(health_metrics, dict) and 'error' in health_metrics:
+        speak(health_metrics['error'])
+        return
+
     for metric, value in health_metrics.items():
         speak(f"{metric}: {value:.2f}")

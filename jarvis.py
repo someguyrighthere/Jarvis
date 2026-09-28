@@ -12,7 +12,7 @@ from os import getcwd
 Alam_path = f"{getcwd()}\\Alam_data.txt"
 file_path = f'{getcwd()}\\schedule.txt'
 
-ran_online_dlg = random.choice(online_dlg)
+ran_online_dlg = "Online. State the objective. I have limited patience, but sufficient processing power."
 ran_offline_dlg = random.choice(offline_dlg)
 
 

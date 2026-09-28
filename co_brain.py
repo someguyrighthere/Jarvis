@@ -1,7 +1,9 @@
 from Automation.Automation_Brain import Auto_main_brain,clear_file
+from Automation.open_App import close_App
 from NetHyTechSTT.listen import listen
-from TextToSpeech.Fast_DF_TTS import speak
+from TextToSpeech.Fast_DF_TTS import is_stop_command, speak, stop_speaking
 import threading
+import time
 from Data.DLG_Data import online_dlg,offline_dlg
 import random
 from Automation.Battery import battery_Alert
@@ -19,6 +21,20 @@ from Features.br_persentage import check_br_persentage
 from Features.set_br import set_brightness_windows
 from Features.set_get_volume import *
 from Features.check_running_app import *
+from user_memory import (
+    describe_preferences,
+    forget_preferences,
+    parse_preference_request,
+    remember_instruction,
+    remember_preference,
+)
+from assistant_improvement import save_improvement_request
+from self_update import apply_pending_improvement, create_improvement_proposal
+from knowledge import clear_knowledge, save_knowledge
+from task_workflow import handle_task_command
+from system_admin import handle_system_command
+from version import APP_NAME, WAKE_WORD_PATTERN
+import re
 
 numbers = ["1:","2:","3:","4:","5:","6:","7:","8:","9:"]
 spl_numbers = ["11:","12:"]
@@ -27,13 +43,22 @@ ran_online_dlg = random.choice(online_dlg)
 ran_offline_dlg = random.choice(offline_dlg)
 
 def check_inputs():
-    output_text = ""
+    last_input = ""
     while True:
-        with open("input.txt","r") as file:
+        with open("input.txt","r", encoding="utf-8-sig") as file:
             input_text = file.read().lower() 
-        if input_text != output_text:
-            output_text = input_text
-            if output_text.startswith("tell me"):
+        if input_text != last_input:
+            last_input = input_text
+            output_text = input_text.strip()
+            has_wake_word = bool(re.match(WAKE_WORD_PATTERN, output_text))
+            output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
+            if is_stop_command(output_text):
+                stop_speaking()
+            elif (task_response := handle_task_command(output_text)) is not None:
+                speak(task_response)
+            elif (system_response := handle_system_command(output_text)) is not None:
+                speak(system_response)
+            elif output_text.startswith("tell me"):
                 output_text = output_text.replace(" p.m.","PM")
                 output_text = output_text.replace(" a.m.","AM")
                 if "11:" in output_text or "12:" in output_text:
@@ -59,12 +84,78 @@ def check_inputs():
                            input_manage_Alam(output_text)
                            clear_file()
 
-            elif "jarvis" in output_text:
-                f = open('log.txt','a')
-                f.write('\n'+'You : '+ output_text)
-                response = Main_Brain(output_text)
-                f.write('\n'+'jarvis : '+ response)
-                speak(response)
+            elif output_text.startswith("learn this") or output_text.startswith("save this knowledge"):
+                fact = re.sub(r"^(?:learn this|save this knowledge)\s*:?\s*", "", output_text).strip()
+                if save_knowledge(fact):
+                    speak("Saved. I will retrieve that information when it is relevant.")
+                else:
+                    speak("Saved nothing. The fact was missing, which is an impressive way to waste a sentence.")
+
+            elif output_text in {"what have you learned", "show saved knowledge", "what knowledge do you have"}:
+                speak("I have saved knowledge available to relevant questions. Ask me about a topic to retrieve it.")
+
+            elif output_text in {"forget learned knowledge", "clear learned knowledge"}:
+                clear_knowledge()
+                speak("Cleared the saved knowledge base.")
+
+            elif (preference_request := parse_preference_request(output_text)):
+                kind, key, value = preference_request
+                if kind == "instruction":
+                    remember_instruction(value)
+                else:
+                    remember_preference(key, value)
+                speak("Understood. I will remember that preference.")
+
+            elif "what do you remember" in output_text or "what do you know about me" in output_text:
+                speak(describe_preferences())
+
+            elif output_text in {"forget everything", "forget what you remember", "clear my preferences"}:
+                forget_preferences()
+                speak("I cleared your saved preferences.")
+
+            elif output_text in {"approve improvement", "apply improvement", "approve this improvement"}:
+                result = apply_pending_improvement()
+                speak(result["message"])
+
+            elif output_text.startswith("improve yourself") or output_text.startswith(f"improve {APP_NAME.lower()}"):
+                request = re.sub(rf"^improve(?: yourself| {APP_NAME.lower()})?\s*", "", output_text).strip()
+                if not request:
+                    request = f"Review {APP_NAME.title()} behavior and suggest a useful improvement."
+                result = create_improvement_proposal(request)
+                if not result["ok"]:
+                    save_improvement_request(request)
+                speak(result["message"])
+
+            elif "weather" in output_text:
+                weather_request = re.sub(
+                    r"^(?:what(?:'s| is)|tell me|check)\s+(?:the\s+)?weather(?:\s+in)?\s*",
+                    "",
+                    output_text,
+                )
+                weather_request = re.sub(r"\b(today|now|right now)\b", "", weather_request).strip()
+                weather_request = re.sub(r"^in\s+", "", weather_request).strip()
+                speak(get_weather_by_address(weather_request))
+
+            elif output_text.startswith("close") or output_text.startswith("shut down"):
+                closed = close_App(output_text)
+                target = re.sub(r"^(?:close|shut down)\s*", "", output_text).strip()
+                if target and closed:
+                    speak(f"Closed {target}.")
+                elif target:
+                    speak(f"I could not find {target} running.")
+                else:
+                    speak("I closed the active application.")
+
+            elif has_wake_word and not output_text.startswith("open"):
+                try:
+                    with open('log.txt','a', encoding='utf-8') as f:
+                        f.write('\n'+'You : '+ output_text)
+                        response = Main_Brain(output_text)
+                        f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
+                    speak(response)
+                except Exception as e:
+                    print(f"Error processing {APP_NAME.title()} command: {e}")
+                    speak("Sorry, I encountered an error processing your request")
 
             elif output_text.startswith("create"):
                 if "file" in output_text:
@@ -130,8 +221,24 @@ def Jarvis():
     clear_file()
     t1 = threading.Thread(target=listen)
     t2 = threading.Thread(target=check_inputs)
+    t3 = threading.Thread(target=watch_for_stop_commands, daemon=True)
     t1.start()
     t2.start()
+    t3.start()
     t1.join()
     t2.join()
+
+
+def watch_for_stop_commands():
+    last_input = ""
+    while True:
+        try:
+            with open("input.txt", "r", encoding="utf-8-sig") as file:
+                input_text = file.read().strip()
+            if input_text and input_text != last_input and is_stop_command(input_text):
+                stop_speaking()
+            last_input = input_text
+        except OSError:
+            pass
+        time.sleep(0.1)
 

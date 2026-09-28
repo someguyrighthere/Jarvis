@@ -1,14 +1,19 @@
 import math
 import os
+import re
 import subprocess
 import sys
+import tempfile
 import threading
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
+from tkinter import messagebox
+from tkinter import messagebox
 
 import psutil
 import requests
+from version import APP_NAME, APP_VERSION
 
 
 PROJECT_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
@@ -25,6 +30,19 @@ PANEL = "#0b1822"
 PANEL_ALT = "#0e202b"
 LINE = "#1a3a46"
 BLUE = "#4fb9d1"
+RELEASE_API = "https://api.github.com/repos/someguyrighthere/Jarvis/releases/latest"
+RELEASE_ASSET_PREFIX = "https://github.com/someguyrighthere/Jarvis/releases/download/"
+
+
+def is_newer_version(latest, current):
+    latest_parts = tuple(int(part) for part in re.findall(r"\d+", str(latest)))
+    current_parts = tuple(int(part) for part in re.findall(r"\d+", str(current)))
+    if not latest_parts or not current_parts:
+        return False
+    size = max(len(latest_parts), len(current_parts))
+    latest_parts += (0,) * (size - len(latest_parts))
+    current_parts += (0,) * (size - len(current_parts))
+    return latest_parts > current_parts
 
 
 class JarvisPanel:
@@ -42,8 +60,12 @@ class JarvisPanel:
         self.ollama_online = False
         self.voice_state = "STANDBY"
         self.buttons = {}
+        self.update_info = None
+        self.update_busy = False
+        self.update_checking = False
+        self.update_error = None
 
-        root.title("JARVIS // INTERACTIVE COMMAND DECK")
+        root.title(f"{APP_NAME} // INTERACTIVE COMMAND DECK")
         root.geometry("1280x760")
         root.minsize(980, 620)
         root.configure(bg=BG)
@@ -61,6 +83,8 @@ class JarvisPanel:
         self.refresh_log()
         self.animate()
         self.update_telemetry()
+        self.check_for_update()
+        self.root.after(100, self.start)
 
     def render(self):
         width = max(self.canvas.winfo_width(), 980)
@@ -114,7 +138,7 @@ class JarvisPanel:
                 self.canvas.create_arc(x1, y1, x2, y2, start=start, extent=90, outline=outline, width=width, style="arc")
 
     def draw_header(self, width):
-        self.canvas.create_text(52, 47, text="JARVIS", fill=WHITE, font=("Segoe UI", 24, "bold"), anchor="w")
+        self.canvas.create_text(52, 47, text=APP_NAME, fill=WHITE, font=("Segoe UI", 24, "bold"), anchor="w")
         self.canvas.create_text(163, 47, text="PERSONAL INTELLIGENCE", fill=BLUE, font=("Consolas", 9, "bold"), anchor="w")
         self.canvas.create_text(163, 63, text="COMMAND DECK / LOCAL INSTANCE", fill=MUTED, font=("Consolas", 7), anchor="w")
         status_color = CYAN if self.ollama_online else AMBER
@@ -140,7 +164,7 @@ class JarvisPanel:
         self.canvas.create_text(center, 240, text=now.strftime("%B %d, %Y"), fill=MUTED, font=("Segoe UI", 10), anchor="center")
         self.canvas.create_line(68, 260, 262, 260, fill=CYAN_DIM)
         self.canvas.create_text(center, 278, text="CURRENT SESSION", fill=MUTED, font=("Consolas", 8, "bold"), anchor="center")
-        self.canvas.create_text(center, 305, text="JARVIS SYSTEMS", fill=WHITE, font=("Segoe UI", 15), anchor="center")
+        self.canvas.create_text(center, 305, text=f"{APP_NAME} SYSTEMS", fill=WHITE, font=("Segoe UI", 15), anchor="center")
         self.canvas.create_text(center, 328, text="LOCAL INTELLIGENCE", fill=CYAN_DIM, font=("Consolas", 8), anchor="center")
         self.canvas.create_text(center, 374, text="VOICE INTERFACE", fill=MUTED, font=("Consolas", 8, "bold"), anchor="center")
         self.canvas.create_text(center, 397, text="ACTIVE" if self.active else "STANDBY", fill=CYAN if self.active else AMBER, font=("Consolas", 11, "bold"), anchor="center")
@@ -254,7 +278,15 @@ class JarvisPanel:
             self.rounded_box(bar_left, y + 13, bar_left + (bar_right - bar_left) * numeric_value / 100, y + 19, radius=3, fill=color)
 
     def draw_bottom_controls(self, width, height):
-        return
+        if self.update_busy:
+            label = "INSTALLING UPDATE"
+        elif self.update_info:
+            label = f"UPDATE AVAILABLE {self.update_info['version']}"
+        elif self.update_checking:
+            label = "CHECKING FOR UPDATES"
+        else:
+            label = "CHECK FOR UPDATES"
+        self.button("update", width - 246, height - 76, width - 48, height - 36, label, AMBER if self.update_info else CYAN)
 
     def button(self, name, left, top, right, bottom, label, color):
         self.rounded_box(left, top, right, bottom, radius=10, fill="#102b37", outline=color)
@@ -279,7 +311,12 @@ class JarvisPanel:
     def handle_click(self, event):
         for name, bounds in self.buttons.items():
             if self.inside(event, bounds):
-                actions = {"start": self.start, "core": lambda: self.stop() if self.active else self.start(), "stop": self.stop}
+                actions = {
+                    "start": self.start,
+                    "core": lambda: self.stop() if self.active else self.start(),
+                    "stop": self.stop,
+                    "update": self.handle_update_button,
+                }
                 actions[name]()
                 return
 
@@ -301,7 +338,22 @@ class JarvisPanel:
 
     def stop(self):
         if self.process and self.process.poll() is None:
-            self.process.terminate()
+            if os.name == "nt":
+                try:
+                    result = subprocess.run(
+                        ["taskkill", "/PID", str(self.process.pid), "/T", "/F"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    )
+                    if result.returncode and self.process.poll() is None:
+                        self.process.terminate()
+                except (OSError, subprocess.TimeoutExpired):
+                    self.process.terminate()
+            else:
+                self.process.terminate()
         self.process = None
         self.active = False
         self.render()
@@ -323,6 +375,7 @@ class JarvisPanel:
                 text=True,
                 timeout=2,
                 check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             values = [float(line.strip()) for line in result.stdout.splitlines() if line.strip()]
             return max(values) if values else None
@@ -331,7 +384,7 @@ class JarvisPanel:
 
     def fetch_weather(self):
         try:
-            response = requests.get("https://wttr.in/?format=j1", headers={"User-Agent": "Jarvis/1.0"}, timeout=8)
+            response = requests.get("https://wttr.in/?format=j1", headers={"User-Agent": f"{APP_NAME.title()}/1.0"}, timeout=8)
             current = response.json()["current_condition"][0]
             weather = f"{current['temp_F']}F / {current['weatherDesc'][0]['value'].upper()}"
             detail = "LIVE DATA / CLICK TO REFRESH"
@@ -356,6 +409,126 @@ class JarvisPanel:
     def set_ollama(self, online):
         self.ollama_online = online
         self.render()
+
+    def check_for_update(self, manual=False):
+        if self.update_checking or self.update_busy:
+            return
+        self.update_checking = True
+        self.update_error = None
+        self.render()
+        threading.Thread(target=self._check_for_update, args=(manual,), daemon=True).start()
+
+    def _check_for_update(self, manual):
+        update_info = None
+        error = None
+        try:
+            response = requests.get(
+                RELEASE_API,
+                headers={"Accept": "application/vnd.github+json", "User-Agent": APP_NAME},
+                timeout=8,
+            )
+            response.raise_for_status()
+            release = response.json()
+            latest_version = release.get("tag_name", "").strip()
+            if is_newer_version(latest_version, APP_VERSION):
+                installer = next(
+                    (
+                        asset
+                        for asset in release.get("assets", [])
+                        if asset.get("name", "").lower().startswith("jarvis-setup-")
+                        and asset.get("name", "").lower().endswith(".exe")
+                        and asset.get("browser_download_url", "").startswith(RELEASE_ASSET_PREFIX)
+                    ),
+                    None,
+                )
+                if installer:
+                    update_info = {
+                    "version": latest_version,
+                    "url": installer["browser_download_url"],
+                    }
+                else:
+                    error = f"{APP_NAME} {latest_version} was found, but its installer asset is missing."
+        except (requests.RequestException, ValueError, TypeError, AttributeError) as exception:
+            error = str(exception)
+        self.root.after(0, self.finish_update_check, update_info, error, manual)
+
+    def finish_update_check(self, update_info, error, manual=False):
+        self.update_info = update_info
+        self.update_error = error
+        self.update_checking = False
+        self.render()
+        if error:
+            print(f"{APP_NAME} update check failed: {error}")
+            if manual:
+                messagebox.showerror("Update check failed", error, parent=self.root)
+        elif manual and not update_info:
+            messagebox.showinfo(
+                f"{APP_NAME} is up to date",
+                f"You are running {APP_NAME} {APP_VERSION}. No newer release is available.",
+                parent=self.root,
+            )
+
+    def handle_update_button(self):
+        if self.update_busy or self.update_checking:
+            return
+        if self.update_info:
+            self.apply_update()
+        else:
+            self.check_for_update(manual=True)
+
+    def apply_update(self):
+        if self.update_busy or not self.update_info:
+            return
+        version = self.update_info["version"]
+        if not messagebox.askyesno(
+            f"Update {APP_NAME}",
+            f"Download and install {APP_NAME} {version}? The assistant will close to install the update.",
+            parent=self.root,
+        ):
+            return
+        self.update_busy = True
+        self.render()
+        threading.Thread(target=self.download_update, args=(self.update_info,), daemon=True).start()
+
+    def download_update(self, update_info):
+        installer_path = None
+        try:
+            response = requests.get(update_info["url"], stream=True, timeout=(10, 60))
+            response.raise_for_status()
+            downloaded = 0
+            with tempfile.NamedTemporaryFile(prefix="JARVIS-Setup-", suffix=".exe", delete=False) as installer:
+                installer_path = installer.name
+                for chunk in response.iter_content(chunk_size=1024 * 128):
+                    if not chunk:
+                        continue
+                    downloaded += len(chunk)
+                    if downloaded > 500 * 1024 * 1024:
+                        raise ValueError("The installer exceeded the 500 MB size limit.")
+                    installer.write(chunk)
+            with open(installer_path, "rb") as installer:
+                if installer.read(2) != b"MZ":
+                    raise ValueError("The downloaded file is not a Windows installer.")
+            self.root.after(0, self.launch_update, installer_path)
+        except (requests.RequestException, OSError, ValueError, KeyError) as error:
+            if installer_path:
+                try:
+                    os.remove(installer_path)
+                except OSError:
+                    pass
+            self.root.after(0, self.update_failed, str(error))
+
+    def launch_update(self, installer_path):
+        try:
+            self.stop()
+            subprocess.Popen([installer_path], cwd=PROJECT_DIR)
+            self.root.after(150, self.close)
+        except OSError as error:
+            self.update_failed(str(error))
+
+    def update_failed(self, error):
+        self.update_busy = False
+        self.render()
+        messagebox.showerror("Update failed", f"{APP_NAME} could not install the update.\n\n{error}", parent=self.root)
 
     def refresh_log(self):
         try:

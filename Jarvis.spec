@@ -1,12 +1,29 @@
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-hiddenimports = collect_submodules("Automation") + collect_submodules("Brain") + collect_submodules("Features")
+piper_data = collect_data_files("piper")
+
+hiddenimports = (
+    collect_submodules("Automation")
+    + collect_submodules("Brain")
+    + collect_submodules("Features")
+    + collect_submodules("selenium.webdriver.chrome")
+    + [
+        "piper",
+        "piper.voice",
+        "piper.config",
+        "piper.const",
+        "piper.phoneme_ids",
+        "piper.phonemize_espeak",
+        "piper.tashkeel",
+        "onnxruntime",
+    ]
+)
 
 analysis = Analysis(
     ["launcher.py"],
     pathex=["."],
     binaries=[],
-    datas=[
+    datas=piper_data + [
         ("Alam_data.txt", "."),
         ("input.txt", "."),
         ("log.txt", "."),

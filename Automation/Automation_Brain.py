@@ -1,4 +1,4 @@
-from Automation.open_App import open_App
+from Automation.open_App import close_App, open_App
 from Automation.Web_Open import openweb
 import pyautogui as gui
 from Automation.Play_Music_YT import play_music_on_youtube
@@ -20,9 +20,6 @@ def play():
 def search_google(text):
     pywhatkit.search(text)
 
-def close():
-    gui.hotkey('alt','f4')
-    
 def search(text):
     gui.press("/")
     time.sleep(0.3)
@@ -57,8 +54,8 @@ def Auto_main_brain(text):
    try: 
     if text.startswith("open"):
         Open_Brain(text)
-    elif "close" in text:
-        close()
+    elif text.startswith("close") or text.startswith("shut down"):
+        close_App(text)
     elif "play music" in text or "play music on youtube" in text:
         Fast_DF_TTS.speak("which song do you want to play sir.")
         clear_file()

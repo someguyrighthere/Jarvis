@@ -6,7 +6,7 @@ def Alert(Text):
     icon_path = r"C:\Users\chatu\OneDrive\Desktop\Jarvis\logo.png"
 
     toast = Notification(
-        app_id="🟢 J.A.R.V.I.S.",
+        app_id="SARA",
         title=Text,
         duration="long",
         icon=icon_path

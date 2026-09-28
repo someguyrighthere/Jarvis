@@ -1,5 +1,4 @@
 import numpy as np
-import pyaudio
 import time
 from scipy import signal 
 from TextToSpeech.Fast_DF_TTS import speak
@@ -8,6 +7,8 @@ def play_tone(frequency, duration=2, volume=0.5, sample_rate=44100):
     """
     Plays a single tone of a specific frequency through the speaker.
     """
+    import pyaudio
+
     # Generate samples for the sine wave
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     tone = np.sin(frequency * t * 2 * np.pi)
@@ -37,6 +38,8 @@ def play_sweep(duration=5, volume=0.5, sample_rate=44100, start_freq=20, end_fre
     Plays a frequency sweep from start_freq to end_freq through the speaker.
     Useful for testing the full frequency range of the speaker.
     """
+    import pyaudio
+
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     sweep = signal.chirp(t, start_freq, t[-1], end_freq, method='logarithmic')
 
