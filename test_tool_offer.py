@@ -3,6 +3,9 @@ import unittest
 from unittest.mock import patch
 
 import Brain.brain as brain
+import extension_workflow
+import project_workflow
+import self_update
 
 
 class CapabilityGapTests(unittest.TestCase):
@@ -118,6 +121,84 @@ class AutomationMatchReportingTests(unittest.TestCase):
         with patch("Automation.Automation_Brain.check_percentage") as check_percentage:
             self.assertTrue(Auto_main_brain("check battery percentage"))
             check_percentage.assert_called_once()
+
+
+class JsonExtractionTests(unittest.TestCase):
+    """The small local model often wraps or precedes its JSON proposal with chatter
+    or unescaped newlines; the proposal parsers must tolerate both."""
+
+    def test_extracts_plain_json_with_no_wrapping(self):
+        raw = '{"name": "demo", "description": "x"}'
+        self.assertEqual(
+            project_workflow._extract_json_object(raw),
+            raw,
+        )
+
+    def test_extracts_json_from_fenced_code_block(self):
+        raw = 'Sure, here you go:\n```json\n{"name": "demo"}\n```\nLet me know if that helps.'
+        self.assertEqual(
+            project_workflow._extract_json_object(raw),
+            '{"name": "demo"}',
+        )
+
+    def test_extracts_json_with_leading_and_trailing_chatter_and_no_fence(self):
+        raw = 'Sure! Here is the JSON you asked for: {"name": "demo"} Hope that helps!'
+        self.assertEqual(
+            project_workflow._extract_json_object(raw),
+            '{"name": "demo"}',
+        )
+
+    def test_missing_json_object_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            project_workflow._extract_json_object("I can't help with that right now.")
+
+    def test_unclosed_json_object_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            project_workflow._extract_json_object('{"name": "demo"')
+
+    def test_tolerates_unescaped_newlines_inside_string_values(self):
+        raw = '{"content": "line one\nline two"}'
+        parsed = project_workflow.json.loads(
+            project_workflow._extract_json_object(raw), strict=False
+        )
+        self.assertEqual(parsed["content"], "line one\nline two")
+
+    def test_extension_workflow_extractor_handles_chatter_and_fences(self):
+        raw = 'Here you go:\n```json\n{"name": "demo"}\n```'
+        self.assertEqual(
+            extension_workflow._extract_json_object(raw),
+            '{"name": "demo"}',
+        )
+
+    def test_self_update_extractor_handles_chatter_and_fences(self):
+        raw = 'Sure thing! ```json\n{"summary": "x", "content": "print(1)"}\n``` done.'
+        self.assertEqual(
+            self_update._extract_json_object(raw),
+            '{"summary": "x", "content": "print(1)"}',
+        )
+
+    def test_project_proposal_recovers_from_chatter_wrapped_json(self):
+        response_payload = {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            "Sure, here's a small project for you!\n\n"
+                            '```json\n{"name": "demo-app", "summary": "A demo.", '
+                            '"files": [{"path": "main.py", "content": "print(1)"}]}\n```'
+                        )
+                    }
+                }
+            ]
+        }
+        with patch.object(project_workflow, "_read_json", return_value=None), \
+             patch.object(project_workflow, "_write_json"), \
+             patch.object(project_workflow.requests, "post") as mock_post:
+            mock_post.return_value.raise_for_status = lambda: None
+            mock_post.return_value.json = lambda: response_payload
+            message = project_workflow.create_project_proposal("build me a demo app")
+        self.assertIn("demo-app", message)
+        self.assertNotIn("couldn't", message)
 
 
 if __name__ == "__main__":

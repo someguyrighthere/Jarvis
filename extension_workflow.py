@@ -107,6 +107,50 @@ def validate_extension(extension):
     }, None
 
 
+def _extract_json_object(text):
+    """Pull the first complete JSON object out of an LLM response.
+
+    Small local models often ignore "reply with JSON only" instructions and wrap
+    the object in chatter and/or a ```json fenced block. This locates a fenced
+    block if present, otherwise scans for the first balanced {...} span, so a
+    stray sentence before/after the JSON doesn't break parsing.
+    """
+    text = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+    candidate = fence_match.group(1).strip() if fence_match else text
+
+    start = candidate.find("{")
+    if start == -1:
+        raise ValueError("The model's response did not contain a JSON object.")
+
+    depth = 0
+    in_string = False
+    escape = False
+    end = None
+    for index in range(start, len(candidate)):
+        char = candidate[index]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = index
+                break
+    if end is None:
+        raise ValueError("The model's JSON object was never closed.")
+    return candidate[start : end + 1]
+
+
 def create_extension_proposal(request):
     request = request.strip()
     if not request:
@@ -140,11 +184,9 @@ def create_extension_proposal(request):
         )
         response.raise_for_status()
         answer = response.json()["choices"][0]["message"]["content"].strip()
-        if answer.startswith("```"):
-            answer = answer.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         # strict=False tolerates raw control characters (e.g. literal newlines) that
         # models sometimes leave unescaped inside multi-line description strings.
-        extension, error = validate_extension(json.loads(answer, strict=False))
+        extension, error = validate_extension(json.loads(_extract_json_object(answer), strict=False))
         if error:
             return f"I couldn't make a usable extension proposal: {error}"
         if not extension["steps"]:
