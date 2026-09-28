@@ -1,9 +1,16 @@
+param(
+    [string]$PythonExecutable
+)
+
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
 $projectVenvPython = Join-Path $PSScriptRoot ".venv312\Scripts\python.exe"
 $venvPython = Join-Path (Split-Path $PSScriptRoot -Parent) ".venv\Scripts\python.exe"
-$python = if (Test-Path $projectVenvPython) { $projectVenvPython } elseif (Test-Path $venvPython) { $venvPython } else { "python" }
+if ($PythonExecutable -and -not (Test-Path -LiteralPath $PythonExecutable -PathType Leaf)) {
+    throw "The requested Python executable was not found: $PythonExecutable"
+}
+$python = if ($PythonExecutable) { $PythonExecutable } elseif (Test-Path $projectVenvPython) { $projectVenvPython } elseif (Test-Path $venvPython) { $venvPython } else { "python" }
 
 & $python -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip." }
