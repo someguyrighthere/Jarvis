@@ -442,12 +442,17 @@ class JarvisPanel:
             release = response.json()
             latest_version = release.get("tag_name", "").strip()
             if is_newer_version(latest_version, APP_VERSION):
+                # Match the exact installer name for this release (e.g. "jarvis-setup-1.0.4.exe")
+                # rather than any asset that merely starts with "jarvis-setup-". A release can end
+                # up carrying stray assets from earlier versions, and picking the first loose match
+                # can silently select the wrong (or a corrupt) installer.
+                version_number = re.sub(r"^v", "", latest_version, flags=re.IGNORECASE).strip()
+                expected_name = f"jarvis-setup-{version_number}.exe".lower()
                 installer = next(
                     (
                         asset
                         for asset in release.get("assets", [])
-                        if asset.get("name", "").lower().startswith("jarvis-setup-")
-                        and asset.get("name", "").lower().endswith(".exe")
+                        if asset.get("name", "").lower() == expected_name
                         and asset.get("browser_download_url", "").startswith(RELEASE_ASSET_PREFIX)
                     ),
                     None,

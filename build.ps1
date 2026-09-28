@@ -12,6 +12,12 @@ if ($PythonExecutable -and -not (Test-Path -LiteralPath $PythonExecutable -PathT
 }
 $python = if ($PythonExecutable) { $PythonExecutable } elseif (Test-Path $projectVenvPython) { $projectVenvPython } elseif (Test-Path $venvPython) { $venvPython } else { "python" }
 
+# Remove any installer left over from a previous build so a stale, wrong-version
+# executable can never be picked up by the packaging or release steps.
+if (Test-Path .\dist\installer) {
+    Remove-Item -Path .\dist\installer -Recurse -Force
+}
+
 & $python -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip." }
 & $python -m pip install -r .\requirements.txt
