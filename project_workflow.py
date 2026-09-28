@@ -325,7 +325,9 @@ def create_project_proposal(request, tool_mode=False):
         answer = response.json()["choices"][0]["message"]["content"].strip()
         if answer.startswith("```"):
             answer = answer.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        project, error = validate_project(json.loads(answer))
+        # strict=False tolerates raw control characters (e.g. literal newlines) that
+        # models sometimes leave unescaped inside multi-line file content strings.
+        project, error = validate_project(json.loads(answer, strict=False))
         if error:
             return f"I couldn't prepare a valid project proposal: {error}"
         if tool_mode:
