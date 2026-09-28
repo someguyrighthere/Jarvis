@@ -1,0 +1,6 @@
+dist/installer/JARVIS-Setup-1.0.3.exe filter=lfs diff=lfs merge=lfs -text
+dist/Jarvis.exe filter=lfs diff=lfs merge=lfs -text
+dist/JarvisPackage/Jarvis.exe filter=lfs diff=lfs merge=lfs -text
+dist-validation-venv/Jarvis.exe filter=lfs diff=lfs merge=lfs -text
+build-validation-venv/Jarvis/Jarvis.pkg filter=lfs diff=lfs merge=lfs -text
+dist/installer/JARVIS-Setup-1.0.2.exe filter=lfs diff=lfs merge=lfs -text
