@@ -1,14 +1,14 @@
 from Automation.Automation_Brain import Auto_main_brain,clear_file
 from Automation.open_App import close_App
 from NetHyTechSTT.listen import listen
-from TextToSpeech.Fast_DF_TTS import is_stop_command, speak, stop_speaking
+from TextToSpeech.Fast_DF_TTS import is_stop_command, speak, stop_speaking, set_voice_state
 import threading
 import time
 from Data.DLG_Data import online_dlg,offline_dlg
 import random
 from Automation.Battery import battery_Alert
 from Time_Operations.brain import input_manage,input_manage_Alam
-from Brain.brain import Main_Brain
+from Brain.brain import Main_Brain, reset_conversation
 from Features.create_file import create_file
 from Vision.Vbrain import *
 from Vision.MVbrain import *
@@ -33,6 +33,9 @@ from self_update import apply_pending_improvement, create_improvement_proposal
 from knowledge import clear_knowledge, save_knowledge
 from task_workflow import handle_task_command
 from system_admin import handle_system_command
+from extension_workflow import create_extension_proposal, handle_extension_command, should_propose_extension
+from project_workflow import handle_project_command
+from tool_workflow import handle_tool_command, run_registered_tool
 from version import APP_NAME, WAKE_WORD_PATTERN
 import re
 
@@ -41,6 +44,28 @@ spl_numbers = ["11:","12:"]
 
 ran_online_dlg = random.choice(online_dlg)
 ran_offline_dlg = random.choice(offline_dlg)
+
+# After Sara speaks a conversational reply, keep listening without the wake word for a
+# short window so the user can ask a natural follow-up ("what about tomorrow?") instead
+# of repeating "Sara" every time.
+FOLLOW_UP_WINDOW_SECONDS = 25
+_conversation_deadline = 0.0
+
+
+def _in_follow_up_window():
+    return time.time() < _conversation_deadline
+
+
+def _extend_follow_up_window():
+    global _conversation_deadline
+    _conversation_deadline = time.time() + FOLLOW_UP_WINDOW_SECONDS
+
+
+def _end_follow_up_window():
+    global _conversation_deadline
+    _conversation_deadline = 0.0
+    reset_conversation()
+
 
 def check_inputs():
     last_input = ""
@@ -51,13 +76,25 @@ def check_inputs():
             last_input = input_text
             output_text = input_text.strip()
             has_wake_word = bool(re.match(WAKE_WORD_PATTERN, output_text))
+            is_follow_up = not has_wake_word and bool(output_text) and _in_follow_up_window()
             output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
+            if output_text and not is_stop_command(output_text):
+                set_voice_state("PROCESSING")
             if is_stop_command(output_text):
+                _end_follow_up_window()
                 stop_speaking()
             elif (task_response := handle_task_command(output_text)) is not None:
                 speak(task_response)
             elif (system_response := handle_system_command(output_text)) is not None:
                 speak(system_response)
+            elif (tool_response := handle_tool_command(output_text)) is not None:
+                speak(tool_response)
+            elif (extension_response := handle_extension_command(output_text)) is not None:
+                speak(extension_response)
+            elif (registered_tool_response := run_registered_tool(output_text)) is not None:
+                speak(registered_tool_response)
+            elif (project_response := handle_project_command(output_text)) is not None:
+                speak(project_response)
             elif output_text.startswith("tell me"):
                 output_text = output_text.replace(" p.m.","PM")
                 output_text = output_text.replace(" a.m.","AM")
@@ -146,13 +183,14 @@ def check_inputs():
                 else:
                     speak("I closed the active application.")
 
-            elif has_wake_word and not output_text.startswith("open"):
+            elif (has_wake_word or is_follow_up) and not output_text.startswith("open") and not should_propose_extension(output_text):
                 try:
                     with open('log.txt','a', encoding='utf-8') as f:
                         f.write('\n'+'You : '+ output_text)
                         response = Main_Brain(output_text)
                         f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
                     speak(response)
+                    _extend_follow_up_window()
                 except Exception as e:
                     print(f"Error processing {APP_NAME.title()} command: {e}")
                     speak("Sorry, I encountered an error processing your request")
@@ -212,10 +250,14 @@ def check_inputs():
 
             elif "check running application" in output_text:
                  check_running_app()
+            elif has_wake_word and should_propose_extension(output_text):
+                speak(create_extension_proposal(output_text))
             else:
                 Auto_main_brain(output_text)
-                
-                
+
+            if output_text and not is_stop_command(output_text):
+                set_voice_state("IDLE")
+
 
 def Jarvis():
     clear_file()

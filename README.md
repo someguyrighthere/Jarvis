@@ -91,6 +91,55 @@ Sara, update drivers and software
 
 These checks are on demand and limited to this computer. A quick scan uses Microsoft Defender. The update command installs available Windows driver updates and upgrades packages managed by `winget`; it accepts package agreements and may require Windows elevation or a restart. Sara does not run these updates in the background, and an unavailable update source is reported rather than treated as a successful check.
 
+### Sara extensions
+Sara can propose reusable extensions from her currently approved read-only tools. Review a proposal before enabling it:
+
+```text
+Sara, create a tool for a network and security brief
+Sara, show extension proposal
+Sara, approve extension
+Sara, reject extension
+Sara, list extensions
+```
+
+Enabled extensions can be invoked by their trigger phrases. This initial extension system only combines local system, network, and Defender status reports. It does not execute model-generated code, install software, run scans, or create arbitrary applications. Requests needing capabilities outside that allowlist are declined rather than granted new permissions automatically.
+
+### Project generation
+Sara can draft a small multi-file app or project, show the proposed file list, and write it into `Documents/SaraProjects` only after approval:
+
+```text
+Sara, build a simple website for tracking reading goals
+Sara, show project proposal
+Sara, approve project
+Sara, reject project
+```
+
+The full draft is stored in `%LOCALAPPDATA%\Sara\project_proposal.json` for review before approval. Sara validates relative paths, file types, size limits, and Python/JSON syntax. Generated code is never run during project creation.
+
+To run a saved Python CLI project, inspect its files first and request a run:
+
+```text
+Sara, run project reading-tracker
+Sara, show run request
+Sara, approve run
+Sara, reject run
+```
+
+Only projects with a root `main.py` or `app.py` can run. Sara checks that the source has not changed since the request. Approved runs use Ubuntu/WSL with Bubblewrap: project source is read-only, networking and Windows/home-directory mounts are unavailable, temporary output is discarded, and runtime, memory, process, file, and output limits are enforced. Sara does not install dependencies.
+
+To make a reusable Sara tool, ask for a tool project, approve its source as a project, then propose and separately approve it as a tool:
+
+```text
+Sara, create a Sara tool to convert temperatures
+Sara, approve project
+Sara, propose project temperature-helper as a Sara tool
+Sara, show tool proposal
+Sara, approve tool
+Sara, list my tools
+```
+
+Tools must provide `tool.py` and `sara_tool.json`, declare no extra permissions, and use specific trigger phrases. Each invocation receives only the current request text, runs in the same WSL sandbox, and must return bounded JSON text. Editing an enabled project's source disables the tool until it is reviewed and approved again.
+
 ### Controlled learning
 Sara can remember preferences without changing its source code:
 

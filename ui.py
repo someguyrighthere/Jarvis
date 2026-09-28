@@ -1,5 +1,6 @@
 import math
 import os
+import random
 import re
 import subprocess
 import sys
@@ -26,6 +27,8 @@ WHITE = "#edf7f5"
 MUTED = "#78939e"
 AMBER = "#efb56a"
 RED = "#ef7078"
+GREEN = "#5cf28c"
+GREEN_DIM = "#1f6b40"
 PANEL = "#0b1822"
 PANEL_ALT = "#0e202b"
 LINE = "#1a3a46"
@@ -176,11 +179,12 @@ class JarvisPanel:
         state_colors = {
             "LISTENING": CYAN,
             "SPEAKING": AMBER,
-            "PROCESSING": WHITE,
+            "PROCESSING": GREEN,
             "IDLE": CYAN_DIM,
             "STANDBY": AMBER,
         }
         core_color = state_colors.get(self.voice_state, CYAN_DIM)
+        thinking = self.voice_state == "PROCESSING"
         self.canvas.create_text(cx, 110, text="COGNITIVE CORE", fill=CYAN, font=("Consolas", 10, "bold"))
         radius = 202
         self.canvas.create_oval(cx - radius - 10, cy - radius - 10, cx + radius + 10, cy + radius + 10, fill="#010305", outline="")
@@ -206,9 +210,13 @@ class JarvisPanel:
                     continue
                 color_index = min(4, max(0, int(brightness * 5)))
                 dot_size = 2 if brightness < 0.72 else 3
+                dot_color = particle_colors[color_index]
+                if thinking and random.random() > 0.94:
+                    dot_color = GREEN
+                    dot_size += 1
                 left = cx + column + jitter_x - dot_size / 2
                 top = cy + row + jitter_y - dot_size / 2
-                self.canvas.create_oval(left, top, left + dot_size, top + dot_size, fill=particle_colors[color_index], outline="")
+                self.canvas.create_oval(left, top, left + dot_size, top + dot_size, fill=dot_color, outline="")
         for point in range(260):
             angle = point / 260 * math.tau + phase * 0.15
             noise = (math.sin(point * 4.73 + phase * 3) + math.sin(point * 1.91 - phase)) / 2
@@ -241,9 +249,12 @@ class JarvisPanel:
                 dot_size = (2 if orbit else 3) + (1 if depth > 0.35 else 0)
                 dot_color = "#aeb8b9" if depth > 0 else "#465255"
                 self.canvas.create_oval(x - dot_size / 2, y - dot_size / 2, x + dot_size / 2, y + dot_size / 2, fill=dot_color, outline="")
-        self.canvas.create_text(cx, cy + 255, text=self.voice_state if self.active else "STANDBY", fill=core_color, font=("Consolas", 11, "bold"))
+        self.canvas.create_text(cx, cy + 255, text=self.state_label() if self.active else "STANDBY", fill=core_color, font=("Consolas", 11, "bold"))
         self.canvas.create_text(cx, cy + 276, text="CLICK CORE TO START / STOP", fill=MUTED, font=("Consolas", 8))
         self.buttons["core"] = (cx - 235, cy - 235, cx + 235, cy + 235)
+
+    def state_label(self):
+        return "THINKING" if self.voice_state == "PROCESSING" else self.voice_state
 
     def draw_right_panel(self, width, height):
         x = width * 0.77
@@ -263,7 +274,7 @@ class JarvisPanel:
         self.telemetry_row(x, 402, "GPU", self.gpu, WHITE, panel_right - 18)
         self.canvas.create_line(x, 454, panel_right - 18, 454, fill="#17343f")
         self.canvas.create_text(center, 480, text="CORE STATUS", fill=MUTED, font=("Consolas", 8, "bold"), anchor="center")
-        self.canvas.create_text(center, 506, text=self.voice_state, fill=CYAN if self.active else AMBER, font=("Consolas", 12, "bold"), anchor="center")
+        self.canvas.create_text(center, 506, text=self.state_label(), fill=GREEN if self.voice_state == "PROCESSING" else (CYAN if self.active else AMBER), font=("Consolas", 12, "bold"), anchor="center")
         self.canvas.create_text(center, 528, text="VOICE LINK / LOCAL PROCESS", fill=CYAN_DIM, font=("Consolas", 8), anchor="center")
 
     def telemetry_row(self, x, y, label, value, color, right):

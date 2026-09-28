@@ -8,9 +8,15 @@ from os import getcwd
 from webdriver_manager.chrome import ChromeDriverManager
 from pathlib import Path
 import sys
+import time
 
 VOICE_STATE_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 VOICE_STATE_PATH = VOICE_STATE_ROOT / "voice_state.txt"
+
+# The recognition page updates its #output element continuously while the user is still
+# talking (interim results). Only treat the text as a finished utterance once it stops
+# changing for this long, so Sara doesn't jump in on half-finished sentences.
+UTTERANCE_SETTLE_SECONDS = 0.9
 
 
 def set_voice_state(state):
@@ -41,21 +47,22 @@ def listen():
         start_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.ID, 'startButton')))
         start_button.click()
         print("Listening...")
-        output_text = ""
-        is_second_click = False
+        committed_text = ""
+        pending_text = ""
+        pending_since = time.monotonic()
         while True:
             output_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'output')))
             current_text = output_element.text.strip()
-            if "Start Listening" in start_button.text and is_second_click:
-                if output_text:
-                    is_second_click = False
-            elif "Listening..." in start_button.text:
-                is_second_click = True
-            if current_text != output_text:
-                output_text = current_text
+            if current_text != pending_text:
+                pending_text = current_text
+                pending_since = time.monotonic()
+                continue
+            settled = (time.monotonic() - pending_since) >= UTTERANCE_SETTLE_SECONDS
+            if settled and pending_text and pending_text != committed_text:
+                committed_text = pending_text
                 with open(Recog_File, "w") as file:
-                    file.write(output_text.lower())
-                    print("User:", output_text)
+                    file.write(committed_text.lower())
+                    print("User:", committed_text)
     except KeyboardInterrupt:
         print("Process interrupted by user.")
     except Exception as e:
