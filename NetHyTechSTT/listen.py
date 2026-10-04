@@ -9,6 +9,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from pathlib import Path
 import sys
 import time
+from NetHyTechSTT.turn_taking import UtteranceBuffer
+from TextToSpeech.Fast_DF_TTS import is_stop_command, speech_input_paused
 
 VOICE_STATE_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 VOICE_STATE_PATH = VOICE_STATE_ROOT / "voice_state.txt"
@@ -47,22 +49,21 @@ def listen():
         start_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.ID, 'startButton')))
         start_button.click()
         print("Listening...")
-        committed_text = ""
-        pending_text = ""
-        pending_since = time.monotonic()
+        utterances = UtteranceBuffer(UTTERANCE_SETTLE_SECONDS)
         while True:
             output_element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'output')))
             current_text = output_element.text.strip()
-            if current_text != pending_text:
-                pending_text = current_text
-                pending_since = time.monotonic()
-                continue
-            settled = (time.monotonic() - pending_since) >= UTTERANCE_SETTLE_SECONDS
-            if settled and pending_text and pending_text != committed_text:
-                committed_text = pending_text
-                with open(Recog_File, "w") as file:
-                    file.write(committed_text.lower())
-                    print("User:", committed_text)
+            utterance = utterances.update(
+                current_text,
+                time.monotonic(),
+                speech_input_paused(),
+                stop_command=is_stop_command(current_text),
+            )
+            if utterance is not None:
+                with open(Recog_File, "w", encoding="utf-8") as file:
+                    file.write(utterance.lower())
+                    print("User:", utterance)
+            time.sleep(0.05)
     except KeyboardInterrupt:
         print("Process interrupted by user.")
     except Exception as e:

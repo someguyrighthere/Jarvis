@@ -34,8 +34,9 @@ from knowledge import clear_knowledge, save_knowledge
 from task_workflow import handle_task_command
 from system_admin import handle_system_command
 from extension_workflow import create_extension_proposal, handle_extension_command, should_propose_extension
+from forge_workflow import handle_forge_command, start_forge_project
 from project_workflow import handle_project_command
-from tool_workflow import create_tool_project, handle_tool_command, run_registered_tool
+from tool_workflow import handle_tool_command, run_registered_tool
 from version import APP_NAME, WAKE_WORD_PATTERN
 import re
 
@@ -102,14 +103,16 @@ def check_inputs():
             has_wake_word = bool(re.match(WAKE_WORD_PATTERN, output_text))
             is_follow_up = not has_wake_word and bool(output_text) and _in_follow_up_window()
             output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
+            if not output_text:
+                continue
             if output_text and not is_stop_command(output_text):
                 set_voice_state("PROCESSING")
             pending_tool_offer = _pop_tool_offer()
             if pending_tool_offer and _AFFIRMATIVE_PATTERN.match(output_text):
-                speak(create_tool_project(pending_tool_offer))
+                speak(start_forge_project(pending_tool_offer))
                 _extend_follow_up_window()
             elif pending_tool_offer and _NEGATIVE_PATTERN.match(output_text):
-                speak("Understood. I will not build a tool for that.")
+                speak("Understood. I will not ask Forge to build a helper for that.")
             elif is_stop_command(output_text):
                 _end_follow_up_window()
                 stop_speaking()
@@ -125,6 +128,8 @@ def check_inputs():
                 speak(registered_tool_response)
             elif (project_response := handle_project_command(output_text)) is not None:
                 speak(project_response)
+            elif (forge_response := handle_forge_command(output_text)) is not None:
+                speak(forge_response)
             elif output_text.startswith("tell me"):
                 output_text = output_text.replace(" p.m.","PM")
                 output_text = output_text.replace(" a.m.","AM")
@@ -289,7 +294,7 @@ def check_inputs():
                 handled = Auto_main_brain(output_text)
                 if not handled and (has_wake_word or is_follow_up):
                     _offer_tool_for(output_text)
-                    speak("I don't have a way to handle that yet. Would you like me to build a reusable tool for it?")
+                    speak("I don't have a way to handle that yet. Would you like me to ask Forge to build a small app or helper?")
                     _extend_follow_up_window()
 
             if output_text and not is_stop_command(output_text):
@@ -320,4 +325,3 @@ def watch_for_stop_commands():
         except OSError:
             pass
         time.sleep(0.1)
-

@@ -9,12 +9,16 @@ import wave
 from pathlib import Path
 import ctypes
 import re
+import time
 from version import WAKE_WORD_PATTERN
 
 VOICE_STATE_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 VOICE_STATE_PATH = VOICE_STATE_ROOT / "voice_state.txt"
 _SPEECH_STOP = threading.Event()
 _SPEECH_LOCK = threading.Lock()
+_SPEAKING = threading.Event()
+_SPEECH_FINISHED_AT = float("-inf")
+SPEECH_ECHO_GRACE_SECONDS = 1.0
 _MCI_ALIAS = "jarvis_speech"
 PIPER_VOICE_NAME = "en_GB-alba-medium"
 PIPER_MODEL_NAME = f"{PIPER_VOICE_NAME}.onnx"
@@ -46,6 +50,10 @@ def stop_speaking():
             ctypes.windll.winmm.mciSendStringW(f"stop {_MCI_ALIAS}", None, 0, None)
         except (AttributeError, OSError):
             pass
+
+
+def speech_input_paused():
+    return _SPEAKING.is_set() or time.monotonic() - _SPEECH_FINISHED_AT < SPEECH_ECHO_GRACE_SECONDS
 
 
 def is_stop_command(text: str) -> bool:
@@ -214,8 +222,10 @@ def Co_speak(message: str, voice: str = "Matthew", folder: str = "", extension: 
     return None
 
 def speak(text):
+    global _SPEECH_FINISHED_AT
     with _SPEECH_LOCK:
         _SPEECH_STOP.clear()
+        _SPEAKING.set()
         set_voice_state("SPEAKING")
         try:
             t1 = threading.Thread(target=Co_speak,args=(text,))
@@ -225,6 +235,8 @@ def speak(text):
             t1.join()
             t2.join()
         finally:
+            _SPEECH_FINISHED_AT = time.monotonic()
+            _SPEAKING.clear()
             set_voice_state("IDLE")
 
 

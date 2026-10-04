@@ -43,7 +43,7 @@ def _record_turn(query, response):
 _capability_gap_request = None
 
 _TOOL_OFFER = (
-    " Would you like me to build a reusable tool so I can handle this kind of request going forward?"
+    " Would you like me to ask Forge to build a small app or helper for this task?"
 )
 
 _REFUSAL_PATTERN = re.compile(
@@ -183,4 +183,3 @@ def Main_Brain(text):
         f"I couldn't find a reliable answer for '{search_query}'."
         + _TOOL_OFFER,
     )
-

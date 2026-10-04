@@ -41,7 +41,7 @@ class CapabilityGapTests(unittest.TestCase):
              patch.object(brain, "search_web", return_value=[]), \
              patch.object(brain.requests, "get", side_effect=RuntimeError("offline")):
             response = brain.Main_Brain("what is the airspeed of an unladen swallow")
-        self.assertIn("build a reusable tool", response)
+        self.assertIn("ask Forge", response)
         self.assertEqual(
             brain.pop_capability_gap(), "what is the airspeed of an unladen swallow"
         )
@@ -51,7 +51,7 @@ class CapabilityGapTests(unittest.TestCase):
             brain, "_ask_llm", return_value="I'm unable to control your thermostat."
         ):
             response = brain.Main_Brain("turn down the thermostat")
-        self.assertIn("build a reusable tool", response)
+        self.assertIn("ask Forge", response)
         self.assertEqual(brain.pop_capability_gap(), "turn down the thermostat")
 
     def test_normal_answers_do_not_flag_a_capability_gap(self):

@@ -56,6 +56,8 @@ The installer is also built automatically by `.github/workflows/release.yml` whe
 
 Use **Start** and **Stop** in the panel to control Sara. The panel shows the current Ollama model, voice, and recent conversation log. Say “Sara” before a command to address the assistant.
 
+Sara ignores ordinary microphone transcripts while speaking and for one second afterward to avoid responding to her own voice. Wait until she finishes before replying; spoken stop commands still interrupt playback. Conversational replies are accepted without the wake word for 25 seconds after her answer finishes.
+
 ### Local AI answers with Ollama
 Sara uses Ollama locally for general questions. Install Ollama from `https://ollama.com/download/windows`, then run these commands:
 
@@ -116,6 +118,14 @@ Sara, reject project
 
 The full draft is stored in `%LOCALAPPDATA%\Sara\project_proposal.json` for review before approval. Sara validates relative paths, file types, size limits, and Python/JSON syntax. Generated code is never run during project creation.
 
+For a more involved task, Sara can hand the request to Forge, the separate local coding agent. Install Forge 1.4.1 or newer with its command-line option enabled (or set `FORGE_EXECUTABLE` to the full path of `forge.exe`), then say:
+
+```text
+Sara, use Forge to build a reading tracker
+```
+
+When Sara offers to ask Forge after an out-of-scope request, say `yes` to open Forge in ask-before-edits mode. Forge works in a private workspace under `%LOCALAPPDATA%\Sara\forge_workspaces`; the Sara-launched session has file tools confined to that workspace, while shell commands, code execution, browser/web tools, GitHub, and sub-agents are unavailable. Review and approve each edit in the Forge window. After Forge finishes, say `Sara, review Forge project`. Sara validates the files and presents them through the existing `show project proposal` / `approve project` flow. Imported apps are saved to `Documents/SaraProjects` only after that approval, and are never run automatically. To run an eligible Python CLI project, use the separate `run project <name>` / `approve run` sandbox flow above.
+
 To run a saved Python CLI project, inspect its files first and request a run:
 
 ```text
@@ -141,16 +151,16 @@ Sara, list my tools
 Tools must provide `tool.py` and `sara_tool.json`, declare no extra permissions, and use specific trigger phrases. Each invocation receives only the current request text, runs in the same WSL sandbox, and must return bounded JSON text. Editing an enabled project's source disables the tool until it is reviewed and approved again.
 
 ### Proactive tool offers
-When Sara can't find a reliable answer to a question, the model itself admits it can't help, or a spoken command doesn't match any known action, she offers to build a reusable tool for it instead of just giving up:
+When Sara can't find a reliable answer, the model admits it can't help, or a spoken command doesn't match a known action, she offers to ask Forge to build a small app or helper:
 
 ```text
 You: Sara, what's the tide schedule for Cape May tomorrow?
-Sara: I couldn't find a reliable answer for that. Would you like me to build a reusable tool so I can handle this kind of request going forward?
+Sara: I couldn't find a reliable answer for that. Would you like me to ask Forge to build a small app or helper for this task?
 You: yes
-Sara: Proposed tool project '...'. Say show project proposal to review it, approve project to accept it, or reject project to discard it.
+Sara: Forge is working in its own workspace...
 ```
 
-A plain "yes"/"sure"/"go ahead" or "no"/"not now" answers the offer directly, without needing the wake word or the full `Sara, create a tool for...` phrasing. Saying yes starts the same reviewed propose-then-approve project/tool flow described above; nothing is generated or run without the usual approval.
+A plain "yes"/"sure"/"go ahead" or "no"/"not now" answers the offer directly, without needing the wake word. Forge asks before each edit, and its Sara-launched session has no shell, code-execution, or web tools. After it finishes, say `Sara, review Forge project`; Sara validates the files and requires the normal project approval before copying them to `Documents/SaraProjects`. Creating a reusable Sara tool from that project remains a separate, reviewed approval flow.
 
 ### Controlled learning
 Sara can remember preferences without changing its source code:
@@ -217,5 +227,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <!-- Telegram -->
 [telegram-shield]: https://img.shields.io/badge/Telegram-%231DA1F2.svg?style=for-the-badge&logo=Telegram&logoColor=white
 [telegram-url]: https://t.me/YourTelegramUsername
-
-
