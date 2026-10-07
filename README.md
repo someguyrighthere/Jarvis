@@ -9,6 +9,16 @@
 **Welcome to Sara!**  
 Sara is a desktop AI assistant designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
 
+### Version 2.0.0
+- Full-body SARA avatar with blinking, voice-driven mouth motion, conversational
+  hand gestures, subtle weight shifts, and an invisible shadow-receiving floor.
+- Live assistant, computer, and Ollama telemetry in the browser HUD.
+- Automatic startup update/dependency checks with compact controls shown only
+  when a newer release or missing component needs attention.
+- Offline Piper voice included in the installer, with optional Chrome, Ollama,
+  AI-model, and Forge setup; skipped choices remain installable in Dependencies.
+- Improved microphone startup, speech formatting, and Forge configuration handling.
+
 ![image](https://github.com/user-attachments/assets/59727c15-d85a-41bc-b27d-bea08b3b3a41)
 
 
@@ -18,7 +28,9 @@ Download the latest `JARVIS-Setup-*.exe` from the repository's GitHub Releases p
 
 To update Sara, run the newer installer over the existing installation. It replaces the app executable while preserving your conversation log, schedules, input state, and preferences.
 
-The installed app still requires Google Chrome for speech recognition and Ollama for local LLM answers. These are external dependencies and are not bundled into the installer.
+Chrome for speech recognition and Ollama/model downloads for local AI are optional
+setup choices, not bundled applications. Skipped choices remain available in the
+Dependencies panel. Python, libraries, the avatar renderer, and voice files are included.
 
 ### Developer installation
 1. Clone the repository:
@@ -45,6 +57,154 @@ To open the visual control panel, run:
 py -3.12 ui.py
 ```
 
+### Selected 3D avatar
+The selected avatar is Microsoft Rocketbox **Business Female 01**, stored in
+`assets/avatars/business-female-01/`. The facial FBX and all seven TGA textures
+come from [Microsoft Rocketbox](https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Female_01)
+at revision `0943055db6ec570bcef9f2c8b41c9e5467c808f9`.
+The original MIT license is included in the asset folder and must accompany
+redistributed copies.
+
+Inspection found 80 skeleton bones and 175 shape geometries, including the
+15 `AA_VI` speech visemes and left/right eye-blink shapes. The character wears
+a black jacket, white shirt, and trousers. The FBX references texture paths
+from its author's computer; importers must resolve those filenames against
+the supplied `Textures` folder.
+
+The HUD's **Open 3D Sara** button opens a local browser window with the avatar.
+Install its local renderer once with `npm ci` inside `avatar_web`.
+No avatar or speech data is sent to a cloud rendering service.
+SARA stands on an invisible floor that only receives a subtle, soft-edged shadow;
+there is no visible platform or pedestal.
+
+The avatar rests with her arms down, blinks, breathes, and gently sways her
+upper body. Waiting includes subtle posture adjustments with upper-spine/head
+counterbalance rather than a repeated sideways bend, and an occasional
+wrist glance after 12 seconds, then roughly every 36 seconds, with the arm
+lowering smoothly when interaction resumes, followed by a small six-second
+settling sway once her arm lowers.
+The wrist glance mimics checking
+the time; the character does not currently wear a modeled watch. Listening adds
+a slight attentive head tilt. Piper speech selects greeting, palm-up explanation,
+emphasis, uncertainty, and small conversational beat gestures. Punctuation and
+word-length estimates locate phrase accents; nearby peaks in the 40 ms audio
+envelope refine stroke timing and scale gesture strength. This is an energy-based
+timing heuristic, not pitch analysis or forced word alignment.
+Each gesture has a preparation, a moving expressive stroke, a short hold, and
+a slower recovery. Smooth minimum-jerk curves drive reachable wrist paths,
+not a repeated blend into a static arm pose. A dominant hand can continue across
+two gestures; nearby same-kind strokes retain a low ready position between them.
+Some uncertainty/explanation gestures add a smaller, delayed supporting hand.
+Wrist rotation and finger opening lag the arm slightly, and small head nods and
+upper-torso turns accompany the stroke. Speaking also adds a slow, subtle
+side-to-side upper-body sway with a smaller forward/back component and head
+counterbalance. It fades in/out smoothly.
+Standing and speaking now include slow hip weight shifts (roughly 2 cm),
+a small pelvis roll, and knee flexion solved with two-bone leg IK.
+World-space ankle targets and foot orientations preserve contact instead of
+dragging the feet with the hips. After about 12 seconds, then roughly every
+32 seconds, alternating feet can make a small outward/forward adjustment:
+lift about 2.5 cm, place about 3.5 cm outward and 1.8 cm forward, hold,
+then lift and return. The supporting leg stays in contact, and the body shifts
+toward it during the adjustment. An in-progress adjustment finishes before
+lower-body motion fades out on a state change; this is in-place stance
+animation, not walking or physics-based balance.
+Path, duration, and strength vary without
+random jitter. Gestures stay in a compact conversational space and are capped
+at twelve per response, distributed across long replies rather than exhausted
+at the beginning. Text-cued gestures take priority over filler beats.
+Silent audio does not trigger a gesture.
+Idle behavior also includes occasional alternating side glances, a small
+shoulder/arm stretch, and a relaxed upper-body posture adjustment, spaced
+between wrist checks. A 72-second idle sequence includes hands held together
+in front of her waist (around 31 seconds) and behind her back (around 57 seconds).
+Two-bone arm positioning keeps these poses within reach. Wrist orientation
+follows the pose with a roughly 25-degree bend limit; all 30 finger joints
+receive a relaxed curl that deepens during hand-folding. During wrist checks,
+the watch-side fingers close into a loose fist with a tucked thumb, then
+relax again as the arm lowers.
+Folded hands are staggered rather than placed at the same point; precise
+finger interlocking/contact is not simulated. These fade out when processing
+or speech begins. A lighter blue-gray backdrop and additional fill/rim
+lighting separate the character's dark clothing from the background.
+These are procedural poses with rule-based intent selection, not motion-captured
+animation or full semantic understanding. Speech interruption clears the gesture plan and smoothly
+returns the arms to rest. SAPI fallback has no timed gesture plan.
+The phase/grouping and asymmetric-handedness design follows the
+[MIT Speech Communication Group gesture coding manual](https://speechcommunicationgroup.mit.edu/gesture/coding-manual.html).
+Anticipatory preparation is informed by
+[ter Bekke, Drijvers, and Holler (2024)](https://doi.org/10.1111/cogs.13407);
+the specific timings and path dimensions above are implementation choices,
+not measured human motion data.
+Run gesture regressions with `python -B -m unittest test_speech_gestures test_avatar_bridge`
+and `node --test avatar_web/speech_motion.test.mjs`.
+The embedded VS Code viewer can report hidden-page visibility; a throttled
+timer keeps animation running there when browser animation frames are paused.
+During Piper playback, a
+40 ms audio-volume envelope drives the `aa` mouth shape; this is audio-reactive
+animation, not phoneme-aligned viseme lip-sync. Windows SAPI fallback has no
+audio envelope and therefore does not animate the mouth. Speech interruption
+and playback completion close the mouth. The existing Tk HUD remains the
+assistant's control panel, and closing it shuts down the local avatar server.
+
+The avatar's right-side cards show live Ollama/model availability, SARA's
+activity, voice, avatar/connection status, assistant-process CPU/RAM/uptime,
+and computer CPU/RAM/GPU readings. Hardware telemetry refreshes every three
+seconds independently of speech synchronization. Process CPU is normalized
+to total system capacity; it excludes Ollama and the browser. GPU readings
+require NVIDIA's `nvidia-smi`; unavailable readings are explicitly labeled
+rather than shown as zero. The viewer reports standby when the assistant
+process is not running.
+
+The browser HUD has compact, vertically stacked controls in its bottom-left
+corner: **Dependencies** above **Update Available**, leaving the avatar unobstructed.
+The HUD checks for updates in the background on startup using the original HUD's
+GitHub release/version matching. The update button only appears when a newer
+release is available and opens the official release page; it does not install automatically.
+Update-check errors remain visible in the status text.
+Dependencies opens a separate checklist for Chrome, Ollama, SARA/Forge models,
+Python and declared packages, Piper voice files, Node/npm, the pinned avatar
+renderer, Forge 1.4.1+, and optional Pyright/Playwright and WSL/Ubuntu/Bubblewrap
+tools. Select **Refresh Status**, then confirm each desired **Install** separately.
+The checklist separates core components from optional installs. Chrome, Ollama,
+and SARA's AI model remain available here even if declined in the installer.
+Choosing not to install Chrome disables the current voice-recognition path;
+local AI responses require Ollama and a model. They are optional *installation
+choices*, not replacements for those features.
+Dependencies are checked automatically on HUD startup. The Dependencies button
+only appears when at least one component (including optional tools) is missing,
+and disappears after all components are installed or bundled. Check failures
+remain visible in the HUD status instead of being treated as missing or installed.
+Nothing installs automatically. Installations run in a background worker;
+errors and verification failures are displayed instead of assumed successful.
+Windows software uses exact winget package IDs. Forge installers must be from
+the official release, at least 1.4.1, and match the release's SHA-256 digest.
+An older public installer is rejected even when it is labeled the latest release.
+Models may take several GB. Optional WSL setup can require elevation, a restart,
+and Ubuntu initialization. Source Python package changes require restarting
+SARA. Source-launched Forge inherits SARA's Python environment for its Python
+extras unless `FORGE_PYTHON` is explicitly set. For standalone/packaged Forge,
+set `FORGE_PYTHON` to the environment shown by the dependency checker.
+Packaged Python and renderer dependencies are bundled rather than
+modified by pip/npm inside the executable. The Dependencies panel never downloads
+a SARA application-update installer. The original Tk HUD retains its confirmed
+download-and-install app update workflow.
+
+Microphone startup uses Selenium's built-in driver manager to match the
+installed Chrome version. The activity indicator shows `STARTING` while the
+recognition browser initializes, and `MIC_ERROR` if startup/listening fails;
+the terminal reports the underlying error.
+
+Conversational requests such as "Sara, tell me about your basic functions"
+receive a normal spoken answer. The "tell me" reminder route only applies
+when the request includes a time such as `11:30 PM`.
+Speech removes asterisk emphasis and bullet markers before Piper or SAPI
+playback, so formatting is not read aloud. Written responses remain unchanged.
+
+For a standalone viewer, run `py -3.12 avatar_bridge.py` and open the printed
+localhost URL. Asset and connection errors appear in the viewer. This viewer
+does not start the assistant; start SARA through the HUD separately.
+
 ### Build an installer
 On Windows, install Inno Setup, then run:
 ```powershell
@@ -53,6 +213,24 @@ On Windows, install Inno Setup, then run:
 ```
 
 The installer is also built automatically by `.github/workflows/release.yml` whenever a `v*` tag is pushed.
+
+The build stages the Alba model/configuration and attribution notice alongside
+the executable. The installer includes those files, the packaged Python runtime
+and libraries, and the avatar/Three.js assets, so end users do not need Python or
+Node.js to run SARA. Building requires Node/npm and internet access for uncached assets.
+Release packages use empty initial conversation/input/schedule files, never the
+developer's local runtime data. Existing user files are preserved by installer upgrades.
+
+Setup offers independently selectable, initially unchecked choices for **Chrome**,
+**Ollama**, and **SARA's AI model**, plus **Enable coding features** (Forge 1.4.1+
+and its model). Only selected, missing components are installed. Models require
+Ollama: select Ollama too if it is not already installed. Skipped software stays
+available under **Dependencies / Optional installs** later. Forge Python, Node/npm,
+Pyright, Playwright, and WSL/sandbox extras can also be installed there individually.
+Selected downloads may take several GB, accept the listed package licenses, or
+require Windows approval/restart. Setup failures are reported and logged to
+`dependency-setup.log` in the install directory; SARA itself remains installed.
+An incompatible public Forge installer is rejected rather than silently used.
 
 Use **Start** and **Stop** in the panel to control Sara. The panel shows the current Ollama model, voice, and recent conversation log. Say “Sara” before a command to address the assistant.
 
@@ -70,7 +248,9 @@ py -3.12 jarvis.py
 
 Ollama runs on your computer and does not require an API key or subscription. Local commands such as weather and opening applications continue to use Sara's local handlers.
 
-Sara uses Piper's local British English `en_GB-alba-medium` voice. The voice is downloaded on first use and then works offline. If Piper cannot load the model, Windows SAPI is used as a fallback.
+Sara uses Piper's local British English `en_GB-alba-medium` voice. The installer
+includes the voice for offline use. Source runs download it on first use if
+missing. If Piper cannot load the model, Windows SAPI is used as a fallback.
 
 Piper's runtime is GPL-3.0-or-later. The Alba voice model is CC-BY 4.0 and is based on the Edinburgh speech dataset. See the [voice model card](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium) for attribution and details.
 

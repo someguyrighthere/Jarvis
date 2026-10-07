@@ -1,11 +1,10 @@
 import math
 import os
 import random
-import re
 import subprocess
 import sys
-import tempfile
 import threading
+import webbrowser
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,9 @@ from tkinter import messagebox
 import psutil
 import requests
 from version import APP_NAME, APP_VERSION
+from avatar_bridge import start_avatar_server
+from avatar_telemetry import gpu_stats
+from app_updates import check_release, download_installer, is_newer_version
 
 
 PROJECT_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
@@ -33,21 +35,6 @@ PANEL = "#0b1822"
 PANEL_ALT = "#0e202b"
 LINE = "#1a3a46"
 BLUE = "#4fb9d1"
-RELEASE_API = "https://api.github.com/repos/someguyrighthere/Jarvis/releases/latest"
-RELEASE_ASSET_PREFIX = "https://github.com/someguyrighthere/Jarvis/releases/download/"
-
-
-def is_newer_version(latest, current):
-    latest_parts = tuple(int(part) for part in re.findall(r"\d+", str(latest)))
-    current_parts = tuple(int(part) for part in re.findall(r"\d+", str(current)))
-    if not latest_parts or not current_parts:
-        return False
-    size = max(len(latest_parts), len(current_parts))
-    latest_parts += (0,) * (size - len(latest_parts))
-    current_parts += (0,) * (size - len(current_parts))
-    return latest_parts > current_parts
-
-
 class JarvisPanel:
     def __init__(self, root):
         self.root = root
@@ -67,6 +54,7 @@ class JarvisPanel:
         self.update_busy = False
         self.update_checking = False
         self.update_error = None
+        self.avatar_server = None
 
         root.title(f"{APP_NAME} // INTERACTIVE COMMAND DECK")
         root.geometry("1280x760")
@@ -289,6 +277,7 @@ class JarvisPanel:
             self.rounded_box(bar_left, y + 13, bar_left + (bar_right - bar_left) * numeric_value / 100, y + 19, radius=3, fill=color)
 
     def draw_bottom_controls(self, width, height):
+        self.button("avatar", 48, height - 76, 246, height - 36, "OPEN 3D SARA", CYAN)
         if self.update_busy:
             label = "INSTALLING UPDATE"
         elif self.update_info:
@@ -315,7 +304,7 @@ class JarvisPanel:
     def read_voice_state():
         try:
             state = VOICE_STATE_PATH.read_text(encoding="utf-8").strip().upper()
-            return state if state in {"IDLE", "LISTENING", "PROCESSING", "SPEAKING"} else "IDLE"
+            return state if state in {"IDLE", "LISTENING", "PROCESSING", "SPEAKING", "STARTING", "MIC_ERROR"} else "IDLE"
         except (OSError, UnicodeError):
             return "IDLE"
 
@@ -327,6 +316,7 @@ class JarvisPanel:
                     "core": lambda: self.stop() if self.active else self.start(),
                     "stop": self.stop,
                     "update": self.handle_update_button,
+                    "avatar": self.open_avatar,
                 }
                 actions[name]()
                 return
@@ -379,19 +369,8 @@ class JarvisPanel:
 
     @staticmethod
     def get_gpu_usage():
-        try:
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                check=True,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-            values = [float(line.strip()) for line in result.stdout.splitlines() if line.strip()]
-            return max(values) if values else None
-        except (FileNotFoundError, subprocess.SubprocessError, ValueError):
-            return None
+        devices = gpu_stats()["devices"]
+        return max((device["percent"] for device in devices), default=None)
 
     def fetch_weather(self):
         try:
@@ -433,37 +412,7 @@ class JarvisPanel:
         update_info = None
         error = None
         try:
-            response = requests.get(
-                RELEASE_API,
-                headers={"Accept": "application/vnd.github+json", "User-Agent": APP_NAME},
-                timeout=8,
-            )
-            response.raise_for_status()
-            release = response.json()
-            latest_version = release.get("tag_name", "").strip()
-            if is_newer_version(latest_version, APP_VERSION):
-                # Match the exact installer name for this release (e.g. "jarvis-setup-1.0.4.exe")
-                # rather than any asset that merely starts with "jarvis-setup-". A release can end
-                # up carrying stray assets from earlier versions, and picking the first loose match
-                # can silently select the wrong (or a corrupt) installer.
-                version_number = re.sub(r"^v", "", latest_version, flags=re.IGNORECASE).strip()
-                expected_name = f"jarvis-setup-{version_number}.exe".lower()
-                installer = next(
-                    (
-                        asset
-                        for asset in release.get("assets", [])
-                        if asset.get("name", "").lower() == expected_name
-                        and asset.get("browser_download_url", "").startswith(RELEASE_ASSET_PREFIX)
-                    ),
-                    None,
-                )
-                if installer:
-                    update_info = {
-                    "version": latest_version,
-                    "url": installer["browser_download_url"],
-                    }
-                else:
-                    error = f"{APP_NAME} {latest_version} was found, but its installer asset is missing."
+            update_info = check_release()
         except (requests.RequestException, ValueError, TypeError, AttributeError) as exception:
             error = str(exception)
         self.root.after(0, self.finish_update_check, update_info, error, manual)
@@ -509,21 +458,7 @@ class JarvisPanel:
     def download_update(self, update_info):
         installer_path = None
         try:
-            response = requests.get(update_info["url"], stream=True, timeout=(10, 60))
-            response.raise_for_status()
-            downloaded = 0
-            with tempfile.NamedTemporaryFile(prefix="JARVIS-Setup-", suffix=".exe", delete=False) as installer:
-                installer_path = installer.name
-                for chunk in response.iter_content(chunk_size=1024 * 128):
-                    if not chunk:
-                        continue
-                    downloaded += len(chunk)
-                    if downloaded > 500 * 1024 * 1024:
-                        raise ValueError("The installer exceeded the 500 MB size limit.")
-                    installer.write(chunk)
-            with open(installer_path, "rb") as installer:
-                if installer.read(2) != b"MZ":
-                    raise ValueError("The downloaded file is not a Windows installer.")
+            installer_path = str(download_installer(update_info))
             self.root.after(0, self.launch_update, installer_path)
         except (requests.RequestException, OSError, ValueError, KeyError) as error:
             if installer_path:
@@ -559,7 +494,20 @@ class JarvisPanel:
 
     def close(self):
         self.stop()
+        if self.avatar_server is not None:
+            self.avatar_server.shutdown()
+            self.avatar_server.server_close()
         self.root.destroy()
+
+    def open_avatar(self):
+        try:
+            if self.avatar_server is None:
+                self.avatar_server = start_avatar_server()
+            url = f"http://127.0.0.1:{self.avatar_server.server_port}/avatar_web/index.html"
+            if not webbrowser.open(url):
+                raise RuntimeError(f"Could not open a browser. Open {url} manually.")
+        except (OSError, RuntimeError) as error:
+            messagebox.showerror("Avatar unavailable", str(error), parent=self.root)
 
 
 def main():

@@ -24,6 +24,10 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip." }
 if ($LASTEXITCODE -ne 0) { throw "Failed to install project requirements." }
 & $python -m pip install --upgrade pyinstaller
 if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller." }
+& npm.cmd --prefix .\avatar_web ci
+if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled avatar renderer." }
+& $python -B .\prepare_installer.py .\dist\JarvisPackage
+if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled offline voice." }
 $pyinstallerRoot = Join-Path $env:TEMP ("Jarvis-PyInstaller-" + [guid]::NewGuid().ToString("N"))
 $pyinstallerWork = Join-Path $pyinstallerRoot "build"
 $pyinstallerDist = Join-Path $pyinstallerRoot "dist"
@@ -34,11 +38,8 @@ New-Item -ItemType Directory -Force -Path .\dist\JarvisPackage | Out-Null
 Copy-Item (Join-Path $pyinstallerDist "Jarvis.exe") .\dist\Jarvis.exe -Force
 Copy-Item .\dist\Jarvis.exe .\dist\JarvisPackage\Jarvis.exe -Force
 foreach ($file in @("Alam_data.txt", "input.txt", "log.txt", "schedule.txt", "voice_state.txt")) {
-    if (Test-Path ".\$file") {
-        Copy-Item ".\$file" ".\dist\JarvisPackage\$file" -Force
-    } elseif ($file -eq "voice_state.txt") {
-        Set-Content ".\dist\JarvisPackage\$file" "IDLE" -NoNewline
-    }
+    $initialState = if ($file -eq "voice_state.txt") { "IDLE" } else { "" }
+    Set-Content ".\dist\JarvisPackage\$file" $initialState -NoNewline
 }
 
 Write-Host "Package created at $((Resolve-Path .\dist\JarvisPackage).Path)"

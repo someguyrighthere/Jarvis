@@ -1,0 +1,11 @@
+SARA includes the en_GB-alba-medium Piper voice model and its configuration.
+
+Model source and attribution:
+https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/alba/medium
+The Alba voice is based on the Edinburgh speech dataset.
+The model is distributed under Creative Commons Attribution 4.0 (CC-BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+No changes are made to the model or configuration.
+
+The Piper runtime is GPL-3.0-or-later; this model notice does not replace its
+separate runtime license.

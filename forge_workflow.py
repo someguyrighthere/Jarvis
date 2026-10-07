@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -86,7 +87,7 @@ def _configured_forge_model():
     forge_home = Path(os.environ.get("FORGE_HOME", Path.home() / ".forge"))
     config_path = forge_home / "config.toml"
     try:
-        config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        config = tomllib.loads(config_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return None
     except (OSError, tomllib.TOMLDecodeError) as error:
@@ -174,6 +175,8 @@ def start_forge_project(request):
     )
     env["FORGE_HOME"] = str(forge_home)
     env["FORGE_WORKSPACE_ROOT"] = str(workspace)
+    if not getattr(sys, "frozen", False):
+        env.setdefault("FORGE_PYTHON", sys.executable)
     command = [executable, "--ask", prompt]
     creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
     try:

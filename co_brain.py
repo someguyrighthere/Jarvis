@@ -130,7 +130,7 @@ def check_inputs():
                 speak(project_response)
             elif (forge_response := handle_forge_command(output_text)) is not None:
                 speak(forge_response)
-            elif output_text.startswith("tell me"):
+            elif output_text.startswith("tell me") and re.search(r"\b\d{1,2}:\d{2}\s*[ap]\.?m\b", output_text, re.IGNORECASE):
                 output_text = output_text.replace(" p.m.","PM")
                 output_text = output_text.replace(" a.m.","AM")
                 if "11:" in output_text or "12:" in output_text:

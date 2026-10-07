@@ -8,3 +8,7 @@ __pycache__/
 
 # Local backups created by the self-update feature
 /self_update_backups/
+/avatar_web/node_modules/
+/avatar_speech.json
+/.venv*/
+/dependency-setup.log

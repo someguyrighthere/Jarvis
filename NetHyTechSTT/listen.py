@@ -2,13 +2,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from os import getcwd
-from webdriver_manager.chrome import ChromeDriverManager
 from pathlib import Path
 import sys
 import time
+import logging
 from NetHyTechSTT.turn_taking import UtteranceBuffer
 from TextToSpeech.Fast_DF_TTS import is_stop_command, speech_input_paused
 
@@ -25,7 +24,7 @@ def set_voice_state(state):
     try:
         VOICE_STATE_PATH.write_text(state, encoding="utf-8")
     except OSError:
-        pass
+        logging.exception("Could not publish microphone state")
 website = "https://allorizenproject1.netlify.app/"
 Recog_File = f"{getcwd()}\\input.txt"
 
@@ -34,20 +33,26 @@ def create_driver():
     chrome_options = Options()
     chrome_options.add_argument("--use-fake-ui-for-media-stream")
     chrome_options.add_argument("--headless=new")
-    service = Service(ChromeDriverManager().install())
-    browser = webdriver.Chrome(service=service, options=chrome_options)
-    browser.get(website)
+    browser = webdriver.Chrome(options=chrome_options)
+    try:
+        browser.set_page_load_timeout(30)
+        browser.get(website)
+    except Exception:
+        browser.quit()
+        raise
     return browser
 
 
 def listen():
     print("Support in Youtube @NetHyTech")
-    set_voice_state("LISTENING")
+    set_voice_state("STARTING")
     driver = None
+    failed = False
     try:
         driver = create_driver()
         start_button = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.ID, 'startButton')))
         start_button.click()
+        set_voice_state("LISTENING")
         print("Listening...")
         utterances = UtteranceBuffer(UTTERANCE_SETTLE_SECONDS)
         while True:
@@ -67,6 +72,7 @@ def listen():
     except KeyboardInterrupt:
         print("Process interrupted by user.")
     except Exception as e:
+        failed = True
         print("An error occurred:", e)
     finally:
         if driver is not None:
@@ -74,4 +80,4 @@ def listen():
                 driver.quit()
             except Exception as e:
                 print("Could not close speech recognition browser:", e)
-        set_voice_state("IDLE")
+        set_voice_state("MIC_ERROR" if failed else "IDLE")

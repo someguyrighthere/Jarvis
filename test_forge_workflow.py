@@ -18,6 +18,14 @@ class FakeProcess:
         return self.returncode
 
 
+class ForgeConfigTests(unittest.TestCase):
+    def test_windows_bom_config_keeps_the_selected_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "config.toml").write_text('model = "qwen3:8b"\n', encoding="utf-8-sig")
+            with patch.dict(os.environ, {"FORGE_HOME": directory}):
+                self.assertEqual(forge_workflow._configured_forge_model(), "qwen3:8b")
+
+
 class ForgeWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -67,6 +75,8 @@ class ForgeWorkflowTests(unittest.TestCase):
         self.assertNotIn("SARA_TEST_TOKEN", kwargs["env"])
         self.assertEqual(kwargs["env"]["FORGE_HOME"], str(self.forge_homes / pending["project"]))
         self.assertEqual(kwargs["env"]["FORGE_WORKSPACE_ROOT"], str(Path(pending["workspace"])))
+        self.assertEqual(kwargs["env"]["FORGE_PYTHON"],
+                         os.environ.get("FORGE_PYTHON", forge_workflow.sys.executable))
         self.assertEqual(
             (self.forge_homes / pending["project"] / "config.toml").read_text(encoding="utf-8"),
             'mode = "ask"\nallow = []\ndeny = []\n',

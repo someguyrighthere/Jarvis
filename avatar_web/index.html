@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SARA / Live 3D avatar</title>
+  <style>
+    body { margin: 0; background: #05090e; color: #dff8fa; font-family: "Segoe UI", sans-serif; overflow: hidden; }
+    #stage { position: absolute; inset: 0 340px 0 0; }
+    canvas { display: block; width: 100%; height: 100%; }
+    header { position: absolute; top: 24px; left: 30px; pointer-events: none; z-index: 1; }
+    h1 { letter-spacing: 8px; margin: 0; }
+    #status { color: #75e9ed; }
+    footer { position: absolute; bottom: 112px; left: 30px; right: 30px; font-size: 13px; pointer-events: none; }
+    .update-controls { position: absolute; bottom: 20px; left: 30px; z-index: 2; width: 140px; }
+    .update-buttons { display: flex; flex-direction: column; gap: 6px; }
+    .update-buttons button { background: #102b37; color: #edf7f5; border: 1px solid #75e9ed; border-radius: 6px; padding: 6px 8px; min-height: 32px; font: 600 10px "Segoe UI", sans-serif; letter-spacing: .3px; cursor: pointer; }
+    .update-buttons button:hover:not(:disabled) { background: #1a4654; }
+    .update-buttons button:focus-visible { outline: 2px solid #edf7f5; outline-offset: 3px; }
+    .update-buttons button:disabled { opacity: .5; cursor: not-allowed; }
+    .update-buttons button[hidden] { display: none; }
+    #update-message, #dependency-message { margin: 8px 0 0; font-size: 11px; line-height: 1.4; color: #92aeb8; overflow-wrap: anywhere; }
+    #update-message.warning, #dependency-message.warning { color: #ff9393; }
+    #dependency-message:empty { display: none; }
+    #dependency-dialog { color: #dff8fa; background: #0b1822; border: 1px solid #2d6975; border-radius: 12px; width: min(680px, calc(100vw - 64px)); max-height: calc(100vh - 64px); padding: 20px; }
+    #dependency-dialog::backdrop { background: #000a; }
+    .dependency-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .dependency-header h2 { margin: 0; font-size: 18px; }
+    #dependency-dialog button { border: 1px solid #75e9ed; border-radius: 6px; padding: 8px 12px; background: #102b37; color: #edf7f5; cursor: pointer; }
+    #dependency-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+    #dependency-dialog button:focus-visible { outline: 2px solid #edf7f5; outline-offset: 2px; }
+    #dependency-list { margin: 12px 0; }
+    .dependency-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; padding: 12px 0; border-top: 1px solid #24434e; }
+    .dependency-row h3 { margin: 0 0 5px; font-size: 14px; }
+    .dependency-row p { margin: 4px 0; font-size: 12px; overflow-wrap: anywhere; }
+    .dependency-row button { align-self: center; }
+    #dependency-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #dependency-status.warning { color: #ff9393; }
+    #error { color: #ff9393; white-space: pre-wrap; }
+    .telemetry { position: absolute; right: 24px; top: 24px; bottom: 24px; width: 292px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: #2d6975 #07131b; }
+    .card { background: linear-gradient(135deg, #10222ee6, #07131be6); border: 1px solid #24434e; border-left: 3px solid #75e9ed; border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px #0005; }
+    .card h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: 2px; color: #75e9ed; }
+    .hardware + .hardware { margin-top: 12px; padding-top: 12px; border-top: 1px solid #24434e; }
+    .hardware h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 1px; color: #92aeb8; }
+    .card dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 6px; font-size: 12px; }
+    .card dt, .detail { color: #92aeb8; }
+    .card dd { margin: 0; text-align: right; max-width: 165px; overflow-wrap: anywhere; }
+    .reading { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+    .detail { font-size: 11px; margin: 6px 0 0; line-height: 1.35; }
+    .track { height: 4px; background: #19333e; border-radius: 4px; overflow: hidden; }
+    .fill { display: block; height: 100%; width: 0; background: #75e9ed; transition: width .5s; }
+    .warning { color: #efb56a; }
+    footer { right: 350px; }
+    @media (max-height: 760px) {
+      .telemetry { gap: 8px; }
+      .card { padding: 10px; }
+      .card h2 { margin-bottom: 6px; font-size: 11px; }
+      .card dl { gap: 4px; font-size: 11px; }
+      .reading { font-size: 20px; margin-bottom: 4px; }
+      .detail { font-size: 10px; margin-top: 4px; }
+    }
+    @media (max-width: 700px) {
+      #stage { right: 220px; }
+      .telemetry { width: 192px; right: 12px; top: 12px; bottom: 12px; gap: 8px; }
+      .card { padding: 10px; }
+      .card dl { grid-template-columns: 1fr; gap: 4px; }
+      .card dd { text-align: left; }
+      header { left: 16px; }
+      footer { left: 16px; right: 230px; }
+      .update-controls { left: 16px; bottom: 16px; }
+    }
+  </style>
+  <script type="importmap">
+    {"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}
+  </script>
+</head>
+<body>
+  <header><h1>SARA</h1><p id="status">Loading facial-rigged avatar…</p></header>
+  <div id="stage"></div>
+  <aside class="telemetry" aria-label="Live system telemetry">
+    <section class="card"><h2>SARA / SYSTEM</h2><dl>
+      <dt>Activity</dt><dd id="sara-activity">Connecting</dd>
+      <dt>Connection</dt><dd id="sara-connection">Connecting</dd>
+      <dt>Avatar</dt><dd id="sara-avatar">Loading</dd>
+      <dt>Voice</dt><dd id="sara-voice">--</dd>
+      <dt>Process</dt><dd id="sara-process">Checking</dd>
+      <dt>CPU</dt><dd id="sara-cpu">--</dd>
+      <dt>Memory</dt><dd id="sara-memory">--</dd>
+      <dt>Uptime</dt><dd id="sara-uptime">--</dd>
+    </dl><p class="detail" id="sara-detail"></p></section>
+    <section class="card"><h2>COMPUTER / SYSTEM</h2>
+      <div class="hardware"><h3>CPU</h3><div class="reading" id="cpu-value">--</div><div class="track"><span class="fill" id="cpu-bar"></span></div><p class="detail" id="cpu-detail">Waiting for readings</p></div>
+      <div class="hardware"><h3>RAM</h3><div class="reading" id="ram-value">--</div><div class="track"><span class="fill" id="ram-bar"></span></div><p class="detail" id="ram-detail">Waiting for readings</p></div>
+      <div class="hardware"><h3>GPU</h3><div id="gpu-devices" class="detail">Waiting for readings</div></div>
+    </section>
+    <section class="card"><h2>OLLAMA / AI CORE</h2><dl><dt>Service</dt><dd id="ollama-status">Checking</dd><dt>Model</dt><dd id="ollama-model">--</dd></dl><p class="detail" id="ollama-detail">Connecting to local service</p></section>
+    <p class="detail" id="telemetry-status" role="status">Connecting to telemetry</p>
+  </aside>
+  <footer><div id="error" role="alert"></div></footer>
+  <section class="update-controls" aria-label="Application updates">
+    <div class="update-buttons">
+      <button id="open-dependencies" type="button" hidden>DEPENDENCIES</button>
+      <button id="check-updates" type="button" hidden>UPDATE AVAILABLE</button>
+    </div>
+    <p id="update-message" role="status" aria-live="polite"></p>
+    <p id="dependency-message" role="status" aria-live="polite"></p>
+  </section>
+  <dialog id="dependency-dialog" aria-labelledby="dependency-title">
+    <div class="dependency-header">
+      <h2 id="dependency-title">SARA / Dependencies &amp; Forge</h2>
+      <button id="close-dependencies" type="button" aria-label="Close dependencies">CLOSE</button>
+    </div>
+    <p class="detail">Core runtime, libraries, avatar and voice files are included in packaged SARA. Chrome, Ollama, SARA's AI model and coding tools are optional installation choices: skip them during setup and install them here later. Without Chrome voice recognition is unavailable; local AI needs Ollama and a model.</p>
+    <p class="detail">Each installation asks for confirmation and may download large files or require Windows approval. No application update is downloaded here.</p>
+    <p class="detail">For Forge's Python extras, set FORGE_PYTHON to the same environment shown by the checker. Optional WSL setup may require a restart and first-time Ubuntu initialization.</p>
+    <p id="dependency-status" role="status" aria-live="polite">Select Refresh to check dependencies.</p>
+    <button id="refresh-dependencies" type="button">REFRESH STATUS</button>
+    <div id="dependency-list">
+      <h3>Core components</h3>
+      <div id="core-dependencies"></div>
+      <h3>Optional installs / skipped setup choices</h3>
+      <div id="optional-dependencies"></div>
+    </div>
+    <p class="detail"><a href="https://github.com/someguyrighthere/forge/releases" target="_blank" rel="noopener noreferrer">Official Forge releases</a> / Requires Forge 1.4.1 or newer.</p>
+  </dialog>
+  <script type="module" src="./avatar.js"></script>
+  <script type="module" src="./updates.js"></script>
+  <script type="module" src="./dependencies.js"></script>
+</body>
+</html>

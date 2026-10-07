@@ -11,6 +11,8 @@ import ctypes
 import re
 import time
 from version import WAKE_WORD_PATTERN
+from avatar_bridge import audio_envelope, publish_speech
+from speech_gestures import plan_gestures
 
 VOICE_STATE_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 VOICE_STATE_PATH = VOICE_STATE_ROOT / "voice_state.txt"
@@ -67,9 +69,19 @@ def is_stop_command(text: str) -> bool:
     }
 
 
-def _play_audio(audio_path: str):
+def _play_audio(audio_path: str, message: str = ""):
+    try:
+        levels = audio_envelope(audio_path)
+    except (OSError, ValueError, wave.Error) as error:
+        print(f"Avatar audio analysis failed: {error}")
+        levels = []
+    gestures = plan_gestures(message, len(levels) * 0.04, levels)
     if platform.system() != "Windows":
-        playsound(audio_path)
+        publish_speech(levels, "audio", gestures=gestures)
+        try:
+            playsound(audio_path)
+        finally:
+            publish_speech([], "idle")
         return
 
     winmm = ctypes.windll.winmm
@@ -82,12 +94,14 @@ def _play_audio(audio_path: str):
     try:
         if send(f"play {_MCI_ALIAS}"):
             raise RuntimeError("Could not start audio playback")
+        publish_speech(levels, "audio", gestures=gestures)
         while not _SPEECH_STOP.is_set():
             mode = ctypes.create_unicode_buffer(32)
             if send(f"status {_MCI_ALIAS} mode", mode) or mode.value != "playing":
                 break
             _SPEECH_STOP.wait(0.05)
     finally:
+        publish_speech([], "idle")
         send(f"stop {_MCI_ALIAS}")
         send(f"close {_MCI_ALIAS}")
 
@@ -95,6 +109,7 @@ def _play_audio(audio_path: str):
 def _speak_with_sapi(speaker, message: str):
     if _SPEECH_STOP.is_set():
         return
+    publish_speech([], "sapi")
     speaker.Speak(message, 1)
     while not _SPEECH_STOP.is_set() and speaker.Status.RunningState == 2:
         _SPEECH_STOP.wait(0.05)
@@ -164,7 +179,7 @@ def _speak_with_piper(message: str):
         with wave.open(audio_path, "wb") as wav_file:
             voice.synthesize_wav(message, wav_file)
         if not _SPEECH_STOP.is_set():
-            _play_audio(audio_path)
+            _play_audio(audio_path, message)
     finally:
         if audio_path and os.path.exists(audio_path):
             os.remove(audio_path)
@@ -203,6 +218,9 @@ def print_animated_message(message):
     print()
 
 def Co_speak(message: str, voice: str = "Matthew", folder: str = "", extension: str = ".mp3") -> Union[None,str]:
+    message = re.sub(r"(?m)^([ \t]*)\*+[ \t]+", r"\1", message).replace("*", "")
+    if not message.strip():
+        return None
     try:
         _speak_with_piper(message)
     except Exception as e:
@@ -235,6 +253,7 @@ def speak(text):
             t1.join()
             t2.join()
         finally:
+            publish_speech([], "idle")
             _SPEECH_FINISHED_AT = time.monotonic()
             _SPEAKING.clear()
             set_voice_state("IDLE")

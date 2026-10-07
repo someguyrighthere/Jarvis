@@ -35,6 +35,23 @@ jobs:
           $installer = $installer -replace '#define AppVersion "[^"]+"', "#define AppVersion `"$version`""
           Set-Content -Path .\installer.iss -Value $installer -NoNewline -Encoding utf8
 
+      - name: Set up Node for bundled avatar assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate release
+        shell: pwsh
+        run: |
+          & "${{ steps.setup-python.outputs.python-path }}" -m pip install -r .\requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
+          npm.cmd --prefix .\avatar_web ci
+          if ($LASTEXITCODE -ne 0) { throw "Renderer dependency installation failed." }
+          & "${{ steps.setup-python.outputs.python-path }}" -B -m unittest test_app_updates test_avatar_bridge test_dependency_setup test_initial_setup test_speech_gestures test_speech_formatting
+          if ($LASTEXITCODE -ne 0) { throw "Python release tests failed." }
+          node --test .\avatar_web\speech_motion.test.mjs .\avatar_web\dependencies.test.mjs .\avatar_web\updates.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw "Avatar release tests failed." }
+
       - name: Build packaged app
         shell: pwsh
         run: .\build.ps1 -PythonExecutable "${{ steps.setup-python.outputs.python-path }}"
