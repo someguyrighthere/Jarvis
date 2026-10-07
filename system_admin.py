@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import psutil
+from capability_context import diagnostic_capability
 
 
 _DEFENDER_STATUS_SCRIPT = (
@@ -216,7 +217,7 @@ def install_updates():
 
 def handle_system_command(text):
     command = re.sub(r"[\s.,!?]+$", "", text.strip().lower())
-    if command in {"system status", "check system health", "hardware status", "monitor hardware"}:
+    if diagnostic_capability(command) == "system.status":
         return get_system_status()
     if command in {"network status", "check my network", "monitor my network"}:
         return get_network_status()

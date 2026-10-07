@@ -360,26 +360,6 @@ def check_inputs():
                 else:
                     speak("I closed the active application.")
 
-            elif (has_wake_word or is_follow_up) and not output_text.startswith("open") and not should_propose_extension(output_text):
-                try:
-                    learning_proposal = observe_user_detail(
-                        re.sub(WAKE_WORD_PATTERN, "", raw_input_text.strip(), flags=re.IGNORECASE).strip()
-                    )
-                    with open('log.txt','a', encoding='utf-8') as f:
-                        f.write('\n'+'You : '+ output_text)
-                        response = route_conversation_request(output_text, Main_Brain)
-                        f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
-                    speak(response)
-                    if learning_proposal:
-                        speak(learning_proposal)
-                    _extend_follow_up_window()
-                    gap_request = pop_capability_gap()
-                    if gap_request:
-                        _offer_tool_for(gap_request)
-                except Exception as e:
-                    print(f"Error processing {APP_NAME.title()} command: {e}")
-                    speak("Sorry, I encountered an error processing your request")
-
             elif output_text.startswith("create"):
                 if "file" in output_text:
                     speak(create_file(output_text))
@@ -440,6 +420,25 @@ def check_inputs():
                  check_running_app()
             elif has_wake_word and should_propose_extension(output_text):
                 speak(create_extension_proposal(output_text))
+            elif (has_wake_word or is_follow_up) and not output_text.startswith("open"):
+                try:
+                    learning_proposal = observe_user_detail(
+                        re.sub(WAKE_WORD_PATTERN, "", raw_input_text.strip(), flags=re.IGNORECASE).strip()
+                    )
+                    with open('log.txt','a', encoding='utf-8') as f:
+                        f.write('\n'+'You : '+ output_text)
+                        response = route_conversation_request(output_text, Main_Brain)
+                        f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
+                    speak(response)
+                    if learning_proposal:
+                        speak(learning_proposal)
+                    _extend_follow_up_window()
+                    gap_request = pop_capability_gap()
+                    if gap_request:
+                        _offer_tool_for(gap_request)
+                except Exception as e:
+                    print(f"Error processing {APP_NAME.title()} command: {e}")
+                    speak("Sorry, I encountered an error processing your request")
             else:
                 handled = Auto_main_brain(output_text)
                 if not handled and (has_wake_word or is_follow_up):

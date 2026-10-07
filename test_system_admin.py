@@ -7,8 +7,9 @@ import system_admin
 class SystemCommandTests(unittest.TestCase):
     def test_routes_hardware_status(self):
         with patch.object(system_admin, "get_system_status", return_value="hardware report") as report:
-            self.assertEqual(system_admin.handle_system_command("system status"), "hardware report")
-        report.assert_called_once_with()
+            for request in ("system status", "run a systems check", "can you run a diagnostic check on yourself"):
+                self.assertEqual(system_admin.handle_system_command(request), "hardware report")
+        self.assertEqual(report.call_count, 3)
 
     def test_routes_security_scan_only_for_explicit_scan_command(self):
         with patch.object(system_admin, "start_security_scan", return_value="scan started") as scan:

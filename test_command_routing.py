@@ -50,6 +50,13 @@ class CommandRoutingTests(unittest.TestCase):
                 brain.assert_not_called()
                 speak.assert_not_called()
 
+    def test_existing_device_check_precedes_conversation_router(self):
+        with patch.object(co_brain, "check_br_persentage") as brightness:
+            brain, speak, _ = self.run_command("sara check brightness percentage")
+        brightness.assert_called_once_with()
+        brain.assert_not_called()
+        speak.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

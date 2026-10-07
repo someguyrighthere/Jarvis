@@ -219,6 +219,17 @@ local-model tests remain available in `experiments`.
 
 ### Real app tree (2.1.0)
 
+Version 2.1.1 restores natural diagnostic requests such as "run a systems check"
+and "can you run a diagnostic check on yourself" to the existing local CPU,
+memory and disk status handler. System, network and Defender status are
+read-only capabilities; no scan, software install or settings change is implied.
+Computer-access and memory explanations use host-verified local implementation
+facts, not generic cloud-chatbot claims. Existing device/vision/message handlers
+take precedence over conversational model routing. Pending app-tree operations
+still block new actions but no longer block explanations or read-only diagnostics;
+`app tree status` describes the outstanding decision. No approval is inferred
+from ordinary conversation.
+
 The normal assistant now routes conversational requests through local Ollama
 (`qwen3:8b` by default) to an answer, a registered real capability, or an
 approval-gated Forge build proposal. Answers still use SARA's existing personality,

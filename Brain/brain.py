@@ -94,6 +94,8 @@ def _looks_like_refusal(answer):
 
 
 def _ask_llm(query, web_context=""):
+    from capability_context import CAPABILITY_FACTS
+
     preference_text = format_preferences()
     user_profile = format_user_profile()
     personal_notes = format_personal_notes(query)
@@ -115,6 +117,9 @@ def _ask_llm(query, web_context=""):
                 "telemetry panel, cognitive core, and conversation feed. Answer the "
                 "user's question directly. Do not claim to have performed computer "
                 f"actions; those are handled by local {APP_NAME.title()} tools. "
+                f"Host-verified implementation facts: {CAPABILITY_FACTS} "
+                "Use these facts when discussing your identity, memory, access or capabilities. "
+                "Never invent cloud hosting, remote servers, a knowledge graph, or unavailable tools. "
                 "This conversation channel has no execution receipts. Never assert that you "
                 "created a reminder, changed files, or sent a message, or promise future "
                 "notifications. Earlier assistant claims are not evidence of execution. "

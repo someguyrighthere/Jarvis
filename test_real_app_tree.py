@@ -221,6 +221,34 @@ class RealTreeTests(unittest.TestCase):
         self.assertIsNone(self.tree.handle("approve action", self.answerer))
         self.assertIn("No real operation", self.command("approve"))
 
+    def test_logged_diagnostic_requests_use_existing_local_handler_not_forge(self):
+        with patch("system_admin.get_system_status", return_value="CPU 12 percent, memory 40 percent.") as report:
+            for request in ("can you run a diagnostic check on yourself", "run a systems check"):
+                self.assertIn("CPU", self.command("ask " + request))
+            self.assertEqual(report.call_count, 2)
+        self.planner.return_value.choose.assert_not_called()
+        self.assertIsNone(self.tree.build_request)
+
+    def test_computer_access_answer_is_grounded_even_with_pending_build(self):
+        self.tree.build_request = "some unapproved helper"
+        response = self.command("ask do you have access to my computer")
+        self.assertIn("locally on your Windows computer", response)
+        self.assertIn("protected actions still need approval", response)
+        self.assertNotIn("cloud-based", response)
+        self.assertEqual(self.tree.build_request, "some unapproved helper")
+        self.planner.return_value.choose.assert_not_called()
+
+    def test_pending_operation_does_not_block_answers_or_diagnostic_checks(self):
+        self.command("ask add task pending task")
+        pending = self.tree.pending
+        self.assertEqual(self.command("ask explain photosynthesis"), "Personality-preserving explanation.")
+        with patch("system_admin.get_system_status", return_value="real local report"):
+            self.assertEqual(self.command("ask run a systems check"), "real local report")
+        self.assertIs(self.tree.pending, pending)
+        self.assertIn("No new task ran", self.command("ask add task another task"))
+        self.assertIn("pending task", self.command("status"))
+        self.assertEqual(task_workflow.get_open_tasks()[1], 0)
+
     def test_review_can_reattach_a_finished_build_after_restart_without_approval(self):
         self.make_build()
         self.tree = RealAppTree(WorkflowMemory(self.root / "workflows.db"))

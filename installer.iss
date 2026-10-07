@@ -1,5 +1,5 @@
 #define AppName "SARA"
-#define AppVersion "2.1.0"
+#define AppVersion "2.1.1"
 #define AppPublisher "SARA"
 #define AppExeName "Jarvis.exe"
 #ifndef PackageRoot

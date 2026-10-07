@@ -13,6 +13,7 @@ from typing import Callable
 from experiments.app_tree_prototype import RouteKind
 from experiments.ollama_app_tree_check import LocalOllamaPlanner
 from workflow_memory import WorkflowMemory
+from capability_context import describe_capabilities, diagnostic_capability
 
 
 LOGGER = logging.getLogger(__name__)
@@ -34,6 +35,9 @@ class Operation:
 
 
 DESCRIPTIONS = {
+    "system.status": "Read local Windows CPU load, memory usage, free disk space and OS. System diagnostic check.",
+    "network.status": "Read local network interface status and cumulative traffic. No network changes.",
+    "security.status": "Read Microsoft Defender status only. Not a scan or threat-free guarantee.",
     "clock.read": "Read the computer's current local time.",
     "weather.lookup": "Live weather for an explicitly named city, via wttr.in (network request).",
     "reminders.create": "Schedule a local reminder at an exact local date and time. No phone notifications.",
@@ -77,6 +81,16 @@ class RealAppTree:
         from Features.create_file import create_file
         from Features.file_operations import rename_file
 
+        if capability in {"system.status", "network.status", "security.status"}:
+            from system_admin import get_system_status, get_network_status, get_security_status
+
+            handler = {
+                "system.status": get_system_status,
+                "network.status": get_network_status,
+                "security.status": get_security_status,
+            }[capability]
+            return Operation(category, capability, "Read local diagnostic status; no settings will change.",
+                             lambda: Outcome(True, handler()))
         if capability in generated:
             from tool_workflow import execute_tool_record
 
@@ -154,10 +168,15 @@ class RealAppTree:
         raise ValueError("The selected capability is unavailable. Nothing was dispatched.")
 
     def route(self, request: str, answerer: Callable[[str], str]) -> str:
-        if self.pending or self.confirmation or self.build_request or self.build_project:
-            return "Resolve the pending app-tree decision first, or say app tree reset. No new task ran."
         if not request.strip() or len(request) > 1000:
             raise ValueError("App-tree requests must contain 1 to 1000 characters.")
+        description = describe_capabilities(request)
+        if description is not None:
+            return description
+        diagnostic = diagnostic_capability(request)
+        if diagnostic:
+            return self._prepare(diagnostic, request, "diagnostics", {}).execute().text
+        blocked = bool(self.pending or self.confirmation or self.build_request or self.build_project)
         generated = self._generated()
         available = dict(DESCRIPTIONS)
         available.update({identifier: record["manifest"]["description"] for identifier, record in generated.items()})
@@ -199,6 +218,8 @@ class RealAppTree:
             if intent.kind is RouteKind.ANSWER:
                 return answerer(request)
             category = intent.task_type
+            if blocked:
+                return "A real operation is still pending. Say app tree status to inspect it, or app tree reject to discard it. No new task ran."
             if intent.kind is RouteKind.NEEDS_CAPABILITY:
                 self.build_request, self.build_category = request, category
                 return (
@@ -208,6 +229,8 @@ class RealAppTree:
                     "After building, source review and a separate first-run approval are required."
                 )
             capability = intent.capability_id
+        if blocked:
+            return "A real operation is still pending. Say app tree status to inspect it, or app tree reject to discard it. No new task ran."
         preferred = self.memory.preferred(category, fingerprints)
         # Learned preferences are suggestions, not authority to change the selected operation.
         operation = self._prepare(capability, request, category, generated)
@@ -231,9 +254,19 @@ class RealAppTree:
         if action in {"help", ""}:
             return (
                 "Real app tree: ask <request>, approve, reject, worked, failed, not sure, memory, "
-                "clear workflows, reset. Forge: approve build, review build, approve project, approve run. "
+                "clear workflows, reset, status. Forge: approve build, review build, approve project, approve run. "
                 "All real operations require explicit approval; only worked learns a route."
             )
+        if action == "status":
+            if self.pending:
+                return "Awaiting operation approval: " + self.pending.preview
+            if self.confirmation:
+                return "Awaiting success confirmation: " + self.confirmation.preview + " Say app tree worked or failed."
+            if self.build_request:
+                return "Awaiting Forge build approval: " + self.build_request + ". Say app tree approve build or reject."
+            if self.build_project:
+                return "Attached Forge build: " + self.build_project + ". Say app tree review build."
+            return "No app-tree decision is pending."
         if action == "memory":
             entries = self.memory.entries()
             return "User-confirmed REAL workflows: " + (
@@ -383,7 +416,8 @@ def route_registered_tool_request(request: str) -> str | None:
 def route_known_request(request: str, answerer: Callable[[str], str]) -> str | None:
     query = " ".join(request.casefold().split()).rstrip(".?!")
     if (
-        re.match(r"^(?:please )?(?:remind me\b|reminder\b|(?:create|set|add|schedule)(?: a)? reminder\b)", query)
+        describe_capabilities(request) is not None or diagnostic_capability(request)
+        or re.match(r"^(?:please )?(?:remind me\b|reminder\b|(?:create|set|add|schedule)(?: a)? reminder\b)", query)
         or query.startswith("rename file ")
         or re.match(r"^(?:add|create)(?: a)? task ", query)
         or re.match(r"^(?:check )?weather (?:in|for) ", query)
