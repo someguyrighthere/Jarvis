@@ -79,6 +79,12 @@ class AvatarServer(ThreadingHTTPServer):
 
 class AvatarHandler(SimpleHTTPRequestHandler):
     server: AvatarServer
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".js": "text/javascript",
+        ".mjs": "text/javascript",
+    }
+
     def send_json(self, payload: dict, status: int = 200) -> None:
         data = json.dumps(payload).encode()
         self.send_response(status)

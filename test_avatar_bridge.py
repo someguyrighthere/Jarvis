@@ -127,9 +127,10 @@ class AvatarBridgeTests(unittest.TestCase):
                     self.assertEqual(response.headers["Cache-Control"], "no-store")
             with urlopen(base + "/avatar_web/index.html") as response:
                 self.assertIn(b"Live 3D avatar", response.read())
-            with urlopen(base + "/avatar_web/speech_motion.mjs") as response:
-                self.assertIn(b"export function gestureMotion", response.read())
-                self.assertIn("javascript", response.headers["Content-Type"])
+            with patch("mimetypes.guess_type", return_value=("text/plain", None)):
+                for filename in ("speech_motion.mjs", "avatar.js"):
+                    with urlopen(base + "/avatar_web/" + filename) as response:
+                        self.assertIn("javascript", response.headers["Content-Type"])
             with self.assertRaises(HTTPError) as raised:
                 urlopen(base + "/log.txt")
             self.assertEqual(raised.exception.code, 404)
