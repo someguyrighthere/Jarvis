@@ -47,8 +47,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
           npm.cmd --prefix .\avatar_web ci
           if ($LASTEXITCODE -ne 0) { throw "Renderer dependency installation failed." }
-          & "${{ steps.setup-python.outputs.python-path }}" -B -m unittest test_app_updates test_avatar_bridge test_dependency_setup test_initial_setup test_speech_gestures test_speech_formatting test_desktop_app
+          & "${{ steps.setup-python.outputs.python-path }}" -B -m unittest discover -s . -p "test_*.py"
           if ($LASTEXITCODE -ne 0) { throw "Python release tests failed." }
+          & "${{ steps.setup-python.outputs.python-path }}" -B -m unittest discover -s .\experiments -p "test_*.py"
+          if ($LASTEXITCODE -ne 0) { throw "Mock app-tree experiment tests failed." }
           node --test .\avatar_web\speech_motion.test.mjs .\avatar_web\dependencies.test.mjs .\avatar_web\updates.test.mjs .\avatar_web\assistant.test.mjs
           if ($LASTEXITCODE -ne 0) { throw "Avatar release tests failed." }
 

@@ -1,7 +1,13 @@
 from Automation.Automation_Brain import Auto_main_brain,clear_file
 from Automation.open_App import close_App
 from NetHyTechSTT.listen import listen
-from TextToSpeech.Fast_DF_TTS import is_stop_command, speak, stop_speaking, set_voice_state
+from TextToSpeech.Fast_DF_TTS import (
+    is_stop_command,
+    speak,
+    speech_interruption_requested,
+    stop_speaking,
+    set_voice_state,
+)
 import threading
 import time
 from Data.DLG_Data import online_dlg,offline_dlg
@@ -10,6 +16,7 @@ from Automation.Battery import battery_Alert
 from Time_Operations.brain import input_manage,input_manage_Alam
 from Brain.brain import Main_Brain, pop_capability_gap, reset_conversation
 from Features.create_file import create_file
+from Features.file_operations import rename_file
 from Vision.Vbrain import *
 from Vision.MVbrain import *
 from Weather_Check.check_weather import get_weather_by_address
@@ -23,10 +30,14 @@ from Features.set_get_volume import *
 from Features.check_running_app import *
 from user_memory import (
     describe_preferences,
+    forget_memory_category,
     forget_preferences,
     parse_preference_request,
+    observe_user_detail,
     remember_instruction,
+    remember_note,
     remember_preference,
+    resolve_learning_request,
 )
 from assistant_improvement import save_improvement_request
 from self_update import apply_pending_improvement, create_improvement_proposal
@@ -37,6 +48,18 @@ from extension_workflow import create_extension_proposal, handle_extension_comma
 from forge_workflow import handle_forge_command, start_forge_project
 from project_workflow import handle_project_command
 from tool_workflow import handle_tool_command, run_registered_tool
+from action_workflow import (
+    approve_action,
+    cancel_action,
+    capture_undo_state,
+    consume_approval,
+    describe_action_history,
+    propose_action,
+    record_dispatched_action,
+    requires_confirmation,
+    undo_last_action,
+)
+from app_tree_stage import handle_mock_app_tree_command
 from version import APP_NAME, WAKE_WORD_PATTERN
 import re
 
@@ -96,15 +119,86 @@ def check_inputs():
     last_input = ""
     while True:
         with open("input.txt","r", encoding="utf-8-sig") as file:
-            input_text = file.read().lower() 
+            raw_input_text = file.read()
+            input_text = raw_input_text.lower()
         if input_text != last_input:
             last_input = input_text
             output_text = input_text.strip()
             has_wake_word = bool(re.match(WAKE_WORD_PATTERN, output_text))
             is_follow_up = not has_wake_word and bool(output_text) and _in_follow_up_window()
             output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
+            output_text = re.sub(r"[.!?]+$", "", output_text).strip()
             if not output_text:
                 continue
+            try:
+                mock_tree_response = handle_mock_app_tree_command(output_text, answerer=Main_Brain)
+            except (ImportError, OSError, RuntimeError, ValueError) as error:
+                speak(f"I could not process the mock app-tree test: {error}. No real action was run.")
+                continue
+            if mock_tree_response is not None:
+                set_voice_state("PROCESSING")
+                try:
+                    with open("log.txt", "a", encoding="utf-8") as file:
+                        file.write(f"\nYou : {output_text}\n{APP_NAME.title()} : {mock_tree_response}\n")
+                except OSError as error:
+                    speak(f"I could not update the HUD conversation log: {error}")
+                speak(mock_tree_response)
+                _extend_follow_up_window()
+                continue
+            try:
+                learning_response = resolve_learning_request(output_text)
+            except (OSError, ValueError) as error:
+                speak(f"I could not update your saved profile: {error}")
+                continue
+            if learning_response is not None:
+                speak(learning_response)
+                continue
+            approved_action = False
+            undo_state = None
+            if output_text in {"approve action", "approve the action"}:
+                try:
+                    approved_command = approve_action()
+                except (KeyError, OSError, ValueError) as error:
+                    speak(f"I could not approve the proposed action: {error}")
+                    continue
+                if approved_command is None:
+                    speak("There is no computer action waiting for approval.")
+                else:
+                    with open("input.txt", "w", encoding="utf-8") as file:
+                        file.write(approved_command)
+                continue
+            if output_text in {"cancel action", "reject action"}:
+                try:
+                    cancelled = cancel_action()
+                except OSError as error:
+                    speak(f"I could not cancel the proposed action: {error}")
+                else:
+                    speak("I discarded the proposed computer action." if cancelled
+                          else "There is no computer action waiting to be cancelled.")
+                continue
+            if output_text in {"show action history", "show recent actions", "what actions did you do"}:
+                try:
+                    speak(describe_action_history())
+                except (OSError, ValueError) as error:
+                    speak(f"I could not read the action history: {error}")
+                continue
+            try:
+                approved_action = consume_approval(output_text)
+            except (KeyError, OSError, ValueError) as error:
+                speak(f"I could not verify approval for that action: {error}")
+                continue
+            if not approved_action and requires_confirmation(output_text):
+                try:
+                    speak(propose_action(output_text))
+                except (OSError, ValueError) as error:
+                    speak(f"I could not prepare that action for review: {error}")
+                continue
+            if approved_action:
+                try:
+                    undo_state = capture_undo_state(output_text)
+                except (ImportError, OSError, RuntimeError, ValueError) as error:
+                    speak(f"I could not verify the action, so I did not carry it out: {error}")
+                    continue
             if output_text and not is_stop_command(output_text):
                 set_voice_state("PROCESSING")
             pending_tool_offer = _pop_tool_offer()
@@ -131,8 +225,9 @@ def check_inputs():
             elif (forge_response := handle_forge_command(output_text)) is not None:
                 speak(forge_response)
             elif output_text.startswith("tell me") and re.search(r"\b\d{1,2}:\d{2}\s*[ap]\.?m\b", output_text, re.IGNORECASE):
-                output_text = output_text.replace(" p.m.","PM")
-                output_text = output_text.replace(" a.m.","AM")
+                output_text = re.sub(
+                    r"\s*([ap])\.?m\.?\b", lambda match: match[1].upper() + "M", output_text,
+                )
                 if "11:" in output_text or "12:" in output_text:
                     input_manage(output_text)
                     clear_file()
@@ -144,8 +239,9 @@ def check_inputs():
                            clear_file()
                            
             elif output_text.startswith("set alarm"):
-                output_text = output_text.replace(" p.m.","PM")
-                output_text = output_text.replace(" a.m.","AM")
+                output_text = re.sub(
+                    r"\s*([ap])\.?m\.?\b", lambda match: match[1].upper() + "M", output_text,
+                )
                 if "11:" in output_text or "12:" in output_text:
                     input_manage_Alam(output_text)
                     clear_file()
@@ -155,6 +251,21 @@ def check_inputs():
                            output_text = output_text.replace(number,f"0{number}")
                            input_manage_Alam(output_text)
                            clear_file()
+
+            elif output_text.startswith(("remember note ", "save note ")):
+                note = re.sub(r"^(?:remember note|save note)\s*:?\s*", "", output_text).strip()
+                try:
+                    remember_note(note)
+                    speak("Saved as a private local note. You can review or delete it in Manage Memory.")
+                except (OSError, ValueError) as error:
+                    speak(str(error))
+
+            elif output_text in {"forget my notes", "clear my notes"}:
+                try:
+                    forget_memory_category("personal notes")
+                    speak("I cleared your saved personal notes.")
+                except OSError as error:
+                    speak(f"I could not clear your saved notes: {error}")
 
             elif output_text.startswith("learn this") or output_text.startswith("save this knowledge"):
                 fact = re.sub(r"^(?:learn this|save this knowledge)\s*:?\s*", "", output_text).strip()
@@ -172,18 +283,33 @@ def check_inputs():
 
             elif (preference_request := parse_preference_request(output_text)):
                 kind, key, value = preference_request
-                if kind == "instruction":
-                    remember_instruction(value)
-                else:
-                    remember_preference(key, value)
-                speak("Understood. I will remember that preference.")
+                try:
+                    if kind == "instruction":
+                        remember_instruction(value)
+                    else:
+                        remember_preference(key, value)
+                    speak("Understood. I will remember that preference.")
+                except (OSError, ValueError) as error:
+                    speak(f"I could not save that preference: {error}")
 
             elif "what do you remember" in output_text or "what do you know about me" in output_text:
-                speak(describe_preferences())
+                try:
+                    speak(describe_preferences())
+                except (OSError, ValueError) as error:
+                    speak(f"I could not read your saved memory: {error}")
 
             elif output_text in {"forget everything", "forget what you remember", "clear my preferences"}:
-                forget_preferences()
-                speak("I cleared your saved preferences.")
+                try:
+                    forget_preferences()
+                    speak("I cleared your saved preferences.")
+                except OSError as error:
+                    speak(f"I could not clear your saved preferences: {error}")
+
+            elif output_text == "undo last action":
+                try:
+                    speak(undo_last_action())
+                except (ImportError, KeyError, OSError, RuntimeError, ValueError) as error:
+                    speak(f"I could not undo the last action: {error}")
 
             elif output_text in {"approve improvement", "apply improvement", "approve this improvement"}:
                 result = apply_pending_improvement()
@@ -220,11 +346,16 @@ def check_inputs():
 
             elif (has_wake_word or is_follow_up) and not output_text.startswith("open") and not should_propose_extension(output_text):
                 try:
+                    learning_proposal = observe_user_detail(
+                        re.sub(WAKE_WORD_PATTERN, "", raw_input_text.strip(), flags=re.IGNORECASE).strip()
+                    )
                     with open('log.txt','a', encoding='utf-8') as f:
                         f.write('\n'+'You : '+ output_text)
                         response = Main_Brain(output_text)
                         f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
                     speak(response)
+                    if learning_proposal:
+                        speak(learning_proposal)
                     _extend_follow_up_window()
                     gap_request = pop_capability_gap()
                     if gap_request:
@@ -235,7 +366,10 @@ def check_inputs():
 
             elif output_text.startswith("create"):
                 if "file" in output_text:
-                    create_file(output_text)
+                    speak(create_file(output_text))
+
+            elif output_text.startswith("rename file"):
+                speak(rename_file(output_text))
 
             elif "what is this" in output_text or "what can you see" in output_text:
                         image_path = "captured_image.png"
@@ -297,6 +431,12 @@ def check_inputs():
                     speak("I don't have a way to handle that yet. Would you like me to ask Forge to build a small app or helper?")
                     _extend_follow_up_window()
 
+            if approved_action:
+                try:
+                    record_dispatched_action(output_text, undo_state)
+                except (OSError, ValueError) as error:
+                    speak(f"The action was handed to its handler, but I could not save its history: {error}")
+
             if output_text and not is_stop_command(output_text):
                 set_voice_state("IDLE")
 
@@ -319,7 +459,7 @@ def watch_for_stop_commands():
         try:
             with open("input.txt", "r", encoding="utf-8-sig") as file:
                 input_text = file.read().strip()
-            if input_text and input_text != last_input and is_stop_command(input_text):
+            if input_text and input_text != last_input and speech_interruption_requested(input_text):
                 stop_speaking()
             last_input = input_text
         except OSError:

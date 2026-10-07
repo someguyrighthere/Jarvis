@@ -26,6 +26,13 @@ class TurnTakingTests(unittest.TestCase):
         self.assertEqual(buffer.update("sara stop", 0, True, True), "sara stop")
         self.assertIsNone(buffer.update("sara stop", 1, True, True))
 
+    def test_wake_word_command_can_interrupt_and_redirect_speech(self):
+        buffer = UtteranceBuffer(0.9)
+        self.assertIsNone(buffer.update("sara open", 1, True, interrupt_command=True))
+        self.assertIsNone(buffer.update("sara open chrome", 1.5, True, interrupt_command=True))
+        self.assertEqual(buffer.update("sara open chrome", 2.5, True, interrupt_command=True), "sara open chrome")
+        self.assertIsNone(buffer.update("sara open chrome", 3, True, interrupt_command=True))
+
     def test_empty_text_is_never_submitted(self):
         self.assertIsNone(UtteranceBuffer(0.9).update("  ", 10, False))
 
@@ -40,6 +47,11 @@ class TurnTakingTests(unittest.TestCase):
             patch.object(speech.time, "monotonic", return_value=12),
         ):
             self.assertFalse(speech.speech_input_paused())
+
+    def test_only_wake_word_commands_and_stop_requests_interrupt_playback(self):
+        self.assertTrue(speech.is_interrupt_command("Sara, open Chrome"))
+        self.assertTrue(speech.is_interrupt_command("stop talking"))
+        self.assertFalse(speech.is_interrupt_command("open Chrome"))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #define AppName "SARA"
-#define AppVersion "2.0.2"
+#define AppVersion "2.0.3"
 #define AppPublisher "SARA"
 #define AppExeName "Jarvis.exe"
 #ifndef PackageRoot
@@ -29,6 +29,7 @@ Name: "coding"; Description: "Enable coding features: install Forge 1.4.1+ and i
 
 [Files]
 Source: "{#PackageRoot}\Jarvis.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageRoot}\sara.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageRoot}\Alam_data.txt"; DestDir: "{app}"; Flags: onlyifdoesntexist
 Source: "{#PackageRoot}\input.txt"; DestDir: "{app}"; Flags: onlyifdoesntexist
 Source: "{#PackageRoot}\log.txt"; DestDir: "{app}"; Flags: onlyifdoesntexist
@@ -40,8 +41,8 @@ Source: "{#PackageRoot}\models\piper\PIPER-VOICE-NOTICE.txt"; DestDir: "{app}\mo
 Source: "{#PackageRoot}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 
 [Icons]
-Name: "{group}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+Name: "{group}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\sara.ico"
+Name: "{autodesktop}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\sara.ico"
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch SARA"; Flags: nowait postinstall skipifsilent; Check: WebView2Installed

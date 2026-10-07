@@ -15,9 +15,13 @@ class CommandRoutingTests(unittest.TestCase):
                 "handle_task_command", "handle_system_command", "handle_tool_command",
                 "handle_extension_command", "run_registered_tool", "handle_project_command",
                 "handle_forge_command", "_pop_tool_offer", "pop_capability_gap",
+                "handle_mock_app_tree_command", "resolve_learning_request",
             ):
                 stack.enter_context(patch.object(co_brain, name, return_value=None))
             stack.enter_context(patch.object(co_brain, "should_propose_extension", return_value=False))
+            stack.enter_context(patch.object(co_brain, "consume_approval", return_value=False))
+            stack.enter_context(patch.object(co_brain, "requires_confirmation", return_value=False))
+            stack.enter_context(patch.object(co_brain, "observe_user_detail", return_value=None))
             stack.enter_context(patch.object(co_brain, "set_voice_state"))
             stack.enter_context(patch.object(co_brain, "clear_file"))
             stack.enter_context(patch.object(co_brain, "_extend_follow_up_window"))
@@ -35,10 +39,12 @@ class CommandRoutingTests(unittest.TestCase):
         schedule.assert_not_called()
 
     def test_timed_reminder_keeps_schedule_route(self):
-        brain, speak, schedule = self.run_command("sara tell me to take a break at 11:30 p.m.")
-        schedule.assert_called_once_with("tell me to take a break at 11:30PM")
-        brain.assert_not_called()
-        speak.assert_not_called()
+        for suffix, expected in (("p.m.", "PM"), ("pm", "PM"), ("a.m.", "AM"), ("am", "AM")):
+            with self.subTest(suffix=suffix):
+                brain, speak, schedule = self.run_command(f"sara tell me to take a break at 11:30 {suffix}")
+                schedule.assert_called_once_with(f"tell me to take a break at 11:30{expected}")
+                brain.assert_not_called()
+                speak.assert_not_called()
 
 
 if __name__ == "__main__":

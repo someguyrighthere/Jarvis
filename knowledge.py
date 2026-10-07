@@ -1,10 +1,15 @@
 import json
+import logging
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from local_storage import LEGACY_DATA_ROOT, LOCAL_DATA_DIR
 
-KNOWLEDGE_PATH = Path(__file__).resolve().parent / "knowledge.json"
+KNOWLEDGE_PATH = LOCAL_DATA_DIR / "knowledge.json"
+LEGACY_KNOWLEDGE_PATH = LEGACY_DATA_ROOT / "knowledge.json"
+LOGGER = logging.getLogger(__name__)
 STOP_WORDS = {
     "about", "after", "again", "also", "because", "could", "from", "have",
     "into", "that", "their", "there", "these", "they", "this", "what", "when",
@@ -13,15 +18,49 @@ STOP_WORDS = {
 
 
 def _load():
+    if not KNOWLEDGE_PATH.exists() and LEGACY_KNOWLEDGE_PATH != KNOWLEDGE_PATH and LEGACY_KNOWLEDGE_PATH.is_file():
+        try:
+            legacy_data = json.loads(LEGACY_KNOWLEDGE_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            LOGGER.exception("Could not migrate SARA's existing knowledge")
+            raise
+        if not isinstance(legacy_data, list):
+            raise ValueError("SARA's existing knowledge must contain a JSON list.")
+        _save(legacy_data)
     try:
         data = json.loads(KNOWLEDGE_PATH.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except FileNotFoundError:
         return []
+    except (json.JSONDecodeError, OSError):
+        LOGGER.exception("Could not read SARA's saved knowledge")
+        raise
+    if not isinstance(data, list):
+        raise ValueError("SARA's saved knowledge must contain a JSON list.")
+    return data
 
 
 def _save(entries):
-    KNOWLEDGE_PATH.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    temporary = None
+    try:
+        KNOWLEDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=KNOWLEDGE_PATH.parent,
+            prefix=f"{KNOWLEDGE_PATH.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as file:
+            temporary = Path(file.name)
+            json.dump(entries, file, indent=2, ensure_ascii=False)
+            file.flush()
+        temporary.replace(KNOWLEDGE_PATH)
+    except OSError:
+        LOGGER.exception("Could not save SARA's local knowledge")
+        raise
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def save_knowledge(content, source="user"):
@@ -65,7 +104,4 @@ def format_knowledge(entries):
 
 
 def clear_knowledge():
-    try:
-        KNOWLEDGE_PATH.unlink()
-    except FileNotFoundError:
-        pass
+    _save([])

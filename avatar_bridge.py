@@ -16,6 +16,8 @@ from avatar_telemetry import Telemetry
 from app_updates import UpdateService
 from dependency_setup import DependencyService
 import psutil
+from action_workflow import list_action_history
+from user_memory import list_memory_entries, mutate_memory
 
 
 PROJECT_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
@@ -96,16 +98,33 @@ class AvatarHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self) -> None:
+        memory_action = self.path == "/api/memory"
         update_action = self.path == "/api/updates/check"
         assistant_action = self.path.removeprefix("/api/assistant/") if self.path in {"/api/assistant/start", "/api/assistant/stop"} else None
         refresh = self.path == "/api/dependencies/refresh"
         dependency = self.path.removeprefix("/api/dependencies/install/") if self.path.startswith("/api/dependencies/install/") else None
-        if not update_action and not refresh and dependency is None and assistant_action is None:
+        if not memory_action and not update_action and not refresh and dependency is None and assistant_action is None:
             self.send_error(404)
             return
         origin = f"http://127.0.0.1:{self.server.server_port}"
         if self.headers.get("Origin") != origin or self.headers.get("Content-Type") != "application/json":
-            self.send_json({"error": "Update actions must originate from this HUD."}, 403)
+            self.send_json({"error": "Memory and HUD actions must originate from this HUD."}, 403)
+            return
+        if memory_action:
+            try:
+                length = int(self.headers.get("Content-Length", ""))
+            except ValueError:
+                self.send_json({"error": "Expected a valid memory request length."}, 400)
+                return
+            if not 1 <= length <= 8192:
+                self.send_json({"error": "Memory requests must be between 1 and 8192 bytes."}, 400)
+                return
+            try:
+                payload = json.loads(self.rfile.read(length))
+                self.send_json({"entries": mutate_memory(payload)})
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError, OSError) as error:
+                LOGGER.warning("HUD memory update failed: %s", error)
+                self.send_json({"error": str(error)}, 400)
             return
         if self.headers.get("Content-Length") != "2":
             self.send_json({"error": "Expected an empty JSON object."}, 400)
@@ -135,6 +154,20 @@ class AvatarHandler(SimpleHTTPRequestHandler):
         self.send_json(payload, 202)
 
     def do_GET(self) -> None:
+        if self.path == "/api/action-history":
+            try:
+                self.send_json({"entries": list_action_history()})
+            except (OSError, ValueError) as error:
+                LOGGER.exception("Could not read SARA's computer action history")
+                self.send_json({"error": str(error)}, 503)
+            return
+        if self.path == "/api/memory":
+            try:
+                self.send_json({"entries": list_memory_entries()})
+            except (OSError, ValueError) as error:
+                LOGGER.exception("Could not read SARA's saved memory")
+                self.send_json({"error": str(error)}, 503)
+            return
         if self.path == "/api/assistant":
             self.send_json(self.server.assistant.status() if self.server.assistant is not None
                            else {"supported": False, "running": False, "error": None})

@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import avatar_bridge as bridge
+import user_memory
 from TextToSpeech import Fast_DF_TTS as speech
 
 
@@ -128,7 +129,7 @@ class AvatarBridgeTests(unittest.TestCase):
             with urlopen(base + "/avatar_web/index.html") as response:
                 self.assertIn(b"Live 3D avatar", response.read())
             with patch("mimetypes.guess_type", return_value=("text/plain", None)):
-                for filename in ("speech_motion.mjs", "avatar.js"):
+                for filename in ("speech_motion.mjs", "avatar.js", "memory.js", "action_history.js"):
                     with urlopen(base + "/avatar_web/" + filename) as response:
                         self.assertIn("javascript", response.headers["Content-Type"])
             with self.assertRaises(HTTPError) as raised:
@@ -143,6 +144,49 @@ class AvatarBridgeTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_local_memory_api_lists_and_updates_only_through_same_origin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            memory_path = Path(directory) / "user_preferences.json"
+            with (
+                patch.object(user_memory, "MEMORY_PATH", memory_path),
+                patch.object(bridge.UpdateService, "start"),
+                patch.object(bridge.DependencyService, "start"),
+            ):
+                server = bridge.start_avatar_server()
+                try:
+                    base = f"http://127.0.0.1:{server.server_port}"
+                    with urlopen(base + "/api/memory") as response:
+                        self.assertEqual(json.load(response), {"entries": []})
+
+                    payload = json.dumps({"action": "add", "key": "projects", "value": "SARA"})
+                    request = Request(
+                        base + "/api/memory",
+                        data=payload.encode(),
+                        headers={
+                            "Origin": base,
+                            "Content-Type": "application/json",
+                        },
+                        method="POST",
+                    )
+                    with urlopen(request) as response:
+                        self.assertEqual(json.load(response)["entries"][0]["value"], "SARA")
+
+                    bad_origin = Request(
+                        base + "/api/memory",
+                        data=payload.encode(),
+                        headers={
+                            "Origin": "http://example.com",
+                            "Content-Type": "application/json",
+                        },
+                        method="POST",
+                    )
+                    with self.assertRaises(HTTPError) as raised:
+                        urlopen(bad_origin)
+                    self.assertEqual(raised.exception.code, 403)
+                finally:
+                    server.shutdown()
+                    server.server_close()
 
 
 if __name__ == "__main__":

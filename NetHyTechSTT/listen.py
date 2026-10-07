@@ -9,7 +9,7 @@ import sys
 import time
 import logging
 from NetHyTechSTT.turn_taking import UtteranceBuffer
-from TextToSpeech.Fast_DF_TTS import is_stop_command, speech_input_paused
+from TextToSpeech.Fast_DF_TTS import is_interrupt_command, is_stop_command, speech_input_paused
 
 VOICE_STATE_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 VOICE_STATE_PATH = VOICE_STATE_ROOT / "voice_state.txt"
@@ -63,10 +63,11 @@ def listen():
                 time.monotonic(),
                 speech_input_paused(),
                 stop_command=is_stop_command(current_text),
+                interrupt_command=is_interrupt_command(current_text),
             )
             if utterance is not None:
                 with open(Recog_File, "w", encoding="utf-8") as file:
-                    file.write(utterance.lower())
+                    file.write(utterance)
                     print("User:", utterance)
             time.sleep(0.05)
     except KeyboardInterrupt:

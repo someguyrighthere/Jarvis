@@ -69,6 +69,17 @@ def is_stop_command(text: str) -> bool:
     }
 
 
+def is_interrupt_command(text: str) -> bool:
+    query = text.strip().lower()
+    if is_stop_command(query):
+        return True
+    return bool(re.match(WAKE_WORD_PATTERN, query)) and bool(re.sub(WAKE_WORD_PATTERN, "", query).strip())
+
+
+def speech_interruption_requested(text: str) -> bool:
+    return _SPEAKING.is_set() and is_interrupt_command(text)
+
+
 def _play_audio(audio_path: str, message: str = ""):
     try:
         levels = audio_envelope(audio_path)

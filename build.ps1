@@ -1,5 +1,6 @@
 param(
-    [string]$PythonExecutable
+    [string]$PythonExecutable,
+    [switch]$SkipDependencyInstall
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,14 +19,16 @@ if (Test-Path .\dist\installer) {
     Remove-Item -Path .\dist\installer -Recurse -Force
 }
 
-& $python -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip." }
-& $python -m pip install -r .\requirements.txt
-if ($LASTEXITCODE -ne 0) { throw "Failed to install project requirements." }
-& $python -m pip install --upgrade pyinstaller
-if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller." }
-& npm.cmd --prefix .\avatar_web ci
-if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled avatar renderer." }
+if (-not $SkipDependencyInstall) {
+    & $python -m pip install --upgrade pip
+    if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip." }
+    & $python -m pip install -r .\requirements.txt
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install project requirements." }
+    & $python -m pip install --upgrade pyinstaller
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller." }
+    & npm.cmd --prefix .\avatar_web ci
+    if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled avatar renderer." }
+}
 & $python -B .\prepare_installer.py .\dist\JarvisPackage
 if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled offline voice." }
 $webviewBootstrapper = Join-Path $PSScriptRoot "dist\JarvisPackage\MicrosoftEdgeWebview2Setup.exe"
@@ -43,6 +46,7 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed; refusing to package a stal
 New-Item -ItemType Directory -Force -Path .\dist\JarvisPackage | Out-Null
 Copy-Item (Join-Path $pyinstallerDist "Jarvis.exe") .\dist\Jarvis.exe -Force
 Copy-Item .\dist\Jarvis.exe .\dist\JarvisPackage\Jarvis.exe -Force
+Copy-Item .\sara.ico .\dist\JarvisPackage\sara.ico -Force
 foreach ($file in @("Alam_data.txt", "input.txt", "log.txt", "schedule.txt", "voice_state.txt")) {
     $initialState = if ($file -eq "voice_state.txt") { "IDLE" } else { "" }
     Set-Content ".\dist\JarvisPackage\$file" $initialState -NoNewline

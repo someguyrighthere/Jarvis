@@ -1,3 +1,7 @@
+import re
+from pathlib import Path
+
+
 def get_file_extension(text):
     if "python file" in text:
         ex = ".py"
@@ -92,15 +96,37 @@ def update_text(text):
 
 def create_file(text):
     selected_ex = get_file_extension(text)
-    text = update_text(text)
-    if "named" in text or "with name" in text:
-        text = text.replace("named","")
-        text = text.replace("with name","")
-        text = text.replace("create","")
-        text = text.strip()
-        with open(f"{text}{selected_ex}","w"):
+    if not selected_ex:
+        return "I can create a file only when you specify its type."
+    name = re.sub(r"^(?:please\s+)?create(?:\s+a)?\s+", "", text.strip(), flags=re.IGNORECASE)
+    name = re.sub(
+        r"^(?:python|java|text|html|css|javascript|json|xml|csv|markdown|yaml|image|video|audio|pdf|word|excel|powerpoint|zip|tar)\s+file\s+",
+        "",
+        name,
+        flags=re.IGNORECASE,
+    )
+    name = re.sub(r"^(?:named|with name)\s*:?\s*", "", name, flags=re.IGNORECASE).strip()
+    if name.casefold().endswith(selected_ex):
+        name = name[:-len(selected_ex)]
+    if not name:
+        name = "demo"
+    reserved_names = {"CON", "PRN", "AUX", "NUL"}
+    reserved_names.update(f"COM{i}" for i in range(1, 10))
+    reserved_names.update(f"LPT{i}" for i in range(1, 10))
+    if (
+        len(name) > 100
+        or not re.fullmatch(r"[A-Za-z0-9 _.-]+", name)
+        or name in {".", ".."}
+        or name.endswith((".", " "))
+        or name.split(".", 1)[0].upper() in reserved_names
+    ):
+        return "That filename is not valid for a safe file in SARA's working folder."
+    path = Path.cwd() / f"{name}{selected_ex}"
+    try:
+        with path.open("x", encoding="utf-8"):
             pass
-    else :
-        with open(f"demo{selected_ex}","w"):
-            pass
-
+    except FileExistsError:
+        return f"I did not overwrite the existing file {path.name}."
+    except OSError as error:
+        return f"I could not create {path.name}: {error}"
+    return f"Created {path.name} in SARA's working folder."

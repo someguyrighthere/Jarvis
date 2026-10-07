@@ -10,6 +10,11 @@
 Sara is a desktop AI assistant designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
 
 ### Version 2.0.2
+- Custom indigo-and-teal SARA monogram for the Windows app and desktop shortcuts.
+- Manage local saved preferences and personal notes in the HUD; relevant notes can inform local AI replies.
+- Review and approve supported computer-changing commands before execution, inspect the local action log, and undo recent volume or brightness changes.
+- Interrupt spoken replies with a stop command or a new wake-word command to redirect SARA.
+- WhatsApp message sending shows the recipient and exact text and requires a separate spoken confirmation before sending.
 - Ambient black-to-midnight-blue background with a soft glow behind SARA.
 - The background is rendered separately from the avatar, preserving natural
   skin tones and suit contrast without a blue overlay.
@@ -45,6 +50,25 @@ Chrome for speech recognition and Ollama/model downloads for local AI are option
 setup choices, not bundled applications. Skipped choices remain available in the
 Dependencies panel. Python, libraries, the avatar renderer, and voice files are included.
 
+SARA stores saved preferences and personal notes locally. Use “remember note …” by voice,
+or open **Manage Memory** in the HUD to review, edit, or delete saved entries. Relevant
+personal notes can be added to local Ollama prompts.
+
+After a clearly stated detail (for example, your name, city, job, or current project) comes
+up in separate interactions, SARA may ask whether to save it. She saves nothing from this
+learning prompt unless you say “remember it”; say “don't remember it” to decline. Detection
+is limited to explicit, supported phrases, and precise street-address details are not proposed.
+Profile preferences and learned knowledge are stored in `%LOCALAPPDATA%\\Sara` and loaded
+into the local AI context when relevant. Existing project-folder memory files are copied into
+that persistent location on first use.
+
+Supported app launches, closes, file creation/renaming, system volume/brightness changes, reminders,
+image generation, and WhatsApp flows show a review step before SARA dispatches them. Say
+“approve action” or “cancel action”; use **Review Action Log** or “show action history” to
+see approved commands. Volume and brightness changes can be undone with “undo last action.”
+Supported file renames can also be undone when the original name is still available.
+Say “stop talking” or interrupt a spoken reply with “SARA, …” to redirect the conversation.
+
 ### Developer installation
 1. Clone the repository:
     ```bash
@@ -69,6 +93,129 @@ To open SARA's desktop app, run:
 ```powershell
 py -3.12 launcher.py
 ```
+
+### Staged mock app-tree integration (off by default)
+
+The app tree is **not enabled for ordinary requests**. This first integration stage
+uses scripted mock scenarios and optional local Ollama routing, never real apps or
+Forge. SARA's existing persona, profile, notes, preferences, knowledge, and HUD
+remain on their existing paths. Mock replies use the existing speech and conversation
+feed; no new HUD controls are added.
+
+To opt in for a source-run test, launch from a PowerShell terminal:
+
+```powershell
+$env:SARA_APP_TREE_MOCK_ENABLED = "1"
+.\.venv312\Scripts\python.exe launcher.py
+```
+
+Say "SARA, app tree test help" for commands. Try "app tree test weather",
+"app tree test reminder", "app tree test failure", or "app tree test missing app".
+Exact prefix spellings `apptree test` and `app-tree test` are also accepted.
+For natural-language routing, say "app tree test ask check the weather in Boston",
+"app tree test ask remind me to call Alex tomorrow", or
+"app tree test ask explain photosynthesis". The local routing model defaults to
+`qwen3:8b` (override with `SARA_APP_TREE_OLLAMA_MODEL`) and needs a running Ollama
+instance and an installed model. Only loopback HTTP endpoints are permitted.
+It selects a fixed mock weather app, an approval-gated mock reminder, a proposal,
+or an answer through SARA's existing conversation handler (and its existing model,
+persona, and saved-memory context). Planner answer text is not spoken instead of
+SARA's own answer. Invalid decisions get one validated repair; failures are
+reported without falling through to real app execution. A repair cannot detect
+every semantically wrong choice, so model accuracy remains under test.
+Requests are routed independently; pronoun-based task follow-ups are not yet supported.
+Routing can take up to two 120-second model requests; it does not alter the HUD.
+
+For speech-independent testing, open a **separate typed test window** from the
+project root:
+
+```powershell
+$env:SARA_APP_TREE_MOCK_ENABLED = "1"
+$env:SARA_APP_TREE_OLLAMA_MODEL = "qwen3:8b"
+.\.venv312\Scripts\python.exe -m experiments.typed_app_tree_test
+```
+
+Type a natural request without a prefix, then use the approval/feedback buttons.
+Simple local-time questions (including the observed typo "waht time is it") use
+the computer's clock directly, not a model-generated time. This read-only answer
+does not learn a workflow or override a pending approval/confirmation.
+It uses the same staged adapter, but has its own session and temporary history;
+it does not write requests to the running assistant or its conversation log.
+Conversation answers use local Ollama with SARA's existing persona and saved-memory
+context, without web-search fallback or Forge offers. Reset discards pending test decisions,
+not persisted mock workflows.
+Existing saved profile/notes/knowledge are not changed.
+
+The conversation-only answer path now checks common first-person action-completion
+claims and promises of notifications, replacing unverified claims with an explicit
+warning. This is a conservative phrase guard, not a proof of factual correctness
+or a complete detector of every paraphrase. Real tool execution reports remain
+on their existing paths.
+Incomplete commands such as "app tree help" receive correction rather than a
+model-generated explanation. Action words are not guessed: "whether failed"
+does not start a weather test or confirm its result.
+Only "app tree test approve" approves a mock action. Only "app tree test worked"
+learns its successful route; "app tree test failed" declines learning, and
+"app tree test not sure" leaves confirmation pending. Ordinary "yes", "approve action",
+and profile-learning confirmations do not confirm a mock result. Each decision
+is one-time. "app tree test memory" describes confirmed mock workflows and
+labels whether they are temporary or persisted. Existing real-app commands are
+unchanged even while testing: only the explicit test namespace is mocked.
+
+#### Persistent mock workflow memory (separate opt-in)
+
+Set `SARA_APP_TREE_MEMORY_ENABLED=1` before launching the source app or typed
+window to retain **explicitly user-confirmed mock successes** across restarts:
+
+```powershell
+Set-Location "C:\Users\xarcy\OneDrive\Desktop\Jarvis\jarvis-ai-assistant"
+$env:SARA_APP_TREE_MOCK_ENABLED = "1"
+$env:SARA_APP_TREE_MEMORY_ENABLED = "1"
+$env:SARA_APP_TREE_OLLAMA_MODEL = "qwen3:8b"
+.\.venv312\Scripts\python.exe -m experiments.typed_app_tree_test
+```
+
+These entries are stored separately in
+`%LOCALAPPDATA%\Sara\app_tree_mock_workflows.json`, with scope `mock_test_only`.
+Only normalized task categories, mock capability IDs, and explicit confirmation
+counts are stored, not conversation transcripts or raw task requests.
+They do not establish that a real app works, affect personal-memory retrieval,
+or grant any future approval. The voice test and typed window share this mock
+store when opted in; concurrent updates are locked and writes are atomic.
+Invalid files and storage failures are reported rather than silently reset.
+If a save fails, success confirmation remains pending for an explicit retry.
+
+Use **Memory** or "app tree test memory" to inspect; **Clear workflows** or
+"app tree test clear workflows" deletes mock successes and pending mock decisions
+without touching personal memory. **Reset** or "app tree test reset" resets only
+the active session; saved mock successes remain. Pending approvals, unanswered
+confirmations, proposals, and test history do not persist. Closing or Stop/Start
+never automatically approves or confirms a task.
+The typed window confirms deletion before clearing workflows and waits for the
+current operation to finish before allowing you to close, avoiding an unseen
+save after normal window closure. If the store is corrupt, the explicit clear
+command can discard it; otherwise the invalid data is left untouched.
+
+Without the separate memory opt-in, workflows remain temporary and disappear
+when the process exits. Disabling persistence does not delete the existing mock
+store. The older isolated scripted previews still use temporary memory only.
+
+Remove the opt-in before launching normally:
+
+```powershell
+Remove-Item Env:\SARA_APP_TREE_MOCK_ENABLED
+```
+
+Version 2.0.3 packages the staged adapter and the typed test window. These remain
+disabled by default, including after an installer upgrade. To use the typed test
+without the source tree or Python, set the opt-in variables above and run:
+
+```powershell
+& "$env:LOCALAPPDATA\JARVIS\Jarvis.exe" --app-tree-test
+```
+
+The normal desktop shortcut opens the existing HUD. The isolated previews and
+local-model tests remain available in `experiments`.
 
 ### Selected 3D avatar
 The selected avatar is Microsoft Rocketbox **Business Female 01**, stored in
@@ -226,6 +373,10 @@ On Windows, install Inno Setup, then run:
 .\build.ps1
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" .\installer.iss
 ```
+
+For an already prepared build environment, `.\build.ps1 -SkipDependencyInstall`
+reuses installed dependencies instead of upgrading Python packages or reinstalling
+the avatar renderer. Missing build dependencies still fail explicitly.
 
 The installer is also built automatically by `.github/workflows/release.yml` whenever a `v*` tag is pushed.
 It provisions the Microsoft Edge WebView2 Runtime if absent (an internet

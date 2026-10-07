@@ -29,6 +29,25 @@
     #dependency-dialog button { border: 1px solid #75e9ed; border-radius: 6px; padding: 8px 12px; background: #102b37; color: #edf7f5; cursor: pointer; }
     #dependency-dialog button:disabled { opacity: .5; cursor: not-allowed; }
     #dependency-dialog button:focus-visible { outline: 2px solid #edf7f5; outline-offset: 2px; }
+    #memory-dialog { color: #dff8fa; background: #0b1822; border: 1px solid #2d6975; border-radius: 12px; width: min(680px, calc(100vw - 64px)); max-height: calc(100vh - 64px); padding: 20px; }
+    #memory-dialog::backdrop { background: #000a; }
+    .memory-entry { display: grid; grid-template-columns: 130px 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid #24434e; }
+    .memory-entry input, #memory-key, #memory-value { min-width: 0; border: 1px solid #2d6975; border-radius: 6px; padding: 8px; background: #07131b; color: #edf7f5; font: 13px "Segoe UI", sans-serif; }
+    .memory-category { color: #92aeb8; font-size: 12px; overflow-wrap: anywhere; }
+    .memory-entry button, #memory-dialog button { border: 1px solid #75e9ed; border-radius: 6px; padding: 8px 12px; background: #102b37; color: #edf7f5; cursor: pointer; }
+    .memory-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin: 14px 0; }
+    #memory-status { min-height: 1.4em; }
+    #memory-status.warning { color: #ff9393; }
+    #action-history-dialog { color: #dff8fa; background: #0b1822; border: 1px solid #2d6975; border-radius: 12px; width: min(680px, calc(100vw - 64px)); max-height: calc(100vh - 64px); padding: 20px; }
+    #action-history-dialog::backdrop { background: #000a; }
+    .action-history-entry { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; padding: 12px 0; border-top: 1px solid #24434e; }
+    .action-history-command { overflow-wrap: anywhere; }
+    .action-history-status { color: #92aeb8; font-size: 12px; }
+    @media (max-width: 700px) {
+      .memory-entry { grid-template-columns: 1fr auto auto; }
+      .memory-category { grid-column: 1 / -1; }
+      .memory-add { grid-template-columns: 1fr; }
+    }
     #dependency-list { margin: 12px 0; }
     .dependency-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; padding: 12px 0; border-top: 1px solid #24434e; }
     .dependency-row h3 { margin: 0 0 5px; font-size: 14px; }
@@ -104,6 +123,8 @@
       <div class="hardware"><h3>GPU</h3><div id="gpu-devices" class="detail">Waiting for readings</div></div>
     </section>
     <section class="card"><h2>OLLAMA / AI CORE</h2><dl><dt>Service</dt><dd id="ollama-status">Checking</dd><dt>Model</dt><dd id="ollama-model">--</dd></dl><p class="detail" id="ollama-detail">Connecting to local service</p></section>
+    <section class="card"><h2>MEMORY / LOCAL</h2><button id="open-memory" type="button">MANAGE MEMORY</button></section>
+    <section class="card"><h2>COMPUTER / ACTIONS</h2><button id="open-action-history" type="button">REVIEW ACTION LOG</button></section>
     <p class="detail" id="telemetry-status" role="status">Connecting to telemetry</p>
   </aside>
   <footer><div id="error" role="alert"></div></footer>
@@ -133,9 +154,34 @@
     </div>
     <p class="detail"><a href="https://github.com/someguyrighthere/forge/releases" target="_blank" rel="noopener noreferrer">Official Forge releases</a> / Requires Forge 1.4.1 or newer.</p>
   </dialog>
+  <dialog id="action-history-dialog" aria-labelledby="action-history-title">
+    <div class="dependency-header">
+      <h2 id="action-history-title">SARA / Approved action log</h2>
+      <button id="close-action-history" type="button" aria-label="Close action log">CLOSE</button>
+    </div>
+    <p class="detail">This local log records computer commands after you approve them. “Dispatched” means SARA handed the command to its handler; check the spoken response for the result.</p>
+    <div id="action-history-entries"></div>
+    <p id="action-history-status" class="detail" role="status" aria-live="polite"></p>
+  </dialog>
+  <dialog id="memory-dialog" aria-labelledby="memory-title">
+    <div class="dependency-header">
+      <h2 id="memory-title">SARA / Saved memory</h2>
+      <button id="close-memory" type="button" aria-label="Close saved memory">CLOSE</button>
+    </div>
+    <p class="detail">These preferences and notes are stored on this computer and may be used to personalize replies. Edit or remove them at any time.</p>
+    <div id="memory-entries"></div>
+    <form id="memory-add" class="memory-add">
+      <input id="memory-key" maxlength="100" placeholder="Category (e.g. projects)" aria-label="Memory category" required>
+      <input id="memory-value" maxlength="1000" placeholder="A preference or useful note" aria-label="Memory note" required>
+      <button type="submit">ADD</button>
+    </form>
+    <p id="memory-status" class="detail" role="status" aria-live="polite"></p>
+  </dialog>
   <script type="module" src="./avatar.js"></script>
   <script type="module" src="./updates.js"></script>
   <script type="module" src="./dependencies.js"></script>
   <script type="module" src="./assistant.js"></script>
+  <script type="module" src="./memory.js"></script>
+  <script type="module" src="./action_history.js"></script>
 </body>
 </html>

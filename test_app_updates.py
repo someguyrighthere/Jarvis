@@ -30,7 +30,8 @@ class AppUpdateTests(unittest.TestCase):
             {"name": "jarvis-setup-2.0.3.exe", "browser_download_url": "https://example.com/bad.exe"},
             {"name": "jarvis-setup-2.0.3.exe", "browser_download_url": prefix + "v2.0.3/new.exe"},
         ]}
-        with patch.object(updates.requests, "get", return_value=response_for(payload)):
+        with patch.object(updates, "APP_VERSION", "2.0.2"), \
+             patch.object(updates.requests, "get", return_value=response_for(payload)):
             info = updates.check_release()
         self.assertEqual(info["url"], prefix + "v2.0.3/new.exe")
         self.assertEqual(info["name"], "jarvis-setup-2.0.3.exe")
@@ -41,7 +42,8 @@ class AppUpdateTests(unittest.TestCase):
             ({"tag_name": "v2.0.3", "assets": []}, "missing"),
             ({"tag_name": 'v2.0.3"bad'}, "invalid"),
         ]:
-            with patch.object(updates.requests, "get", return_value=response_for(payload)):
+            with patch.object(updates, "APP_VERSION", "2.0.2"), \
+                 patch.object(updates.requests, "get", return_value=response_for(payload)):
                 if expected is None:
                     self.assertIsNone(updates.check_release())
                 else:

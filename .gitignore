@@ -14,3 +14,9 @@ __pycache__/
 /dependency-setup.log
 /assistant-runtime.log
 /desktop-runtime.log
+/pending_computer_action.json
+/computer_action_history.json
+/user_preferences.json
+/knowledge.json
+/app_tree_mock_workflows.json
+/app_tree_mock_workflows.lock

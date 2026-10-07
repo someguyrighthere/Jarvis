@@ -2,6 +2,11 @@ import sys
 
 
 def main():
+    if "--app-tree-test" in sys.argv:
+        from experiments.typed_app_tree_test import main as test_main
+
+        return test_main()
+
     if "--setup-components" in sys.argv:
         from initial_setup import main as setup_main
 

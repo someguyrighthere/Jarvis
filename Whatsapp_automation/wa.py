@@ -1,39 +1,70 @@
-import pywhatkit as kit
 import datetime
+import re
+import time
+
+import pywhatkit as kit
+
 from TextToSpeech.Fast_DF_TTS import speak
-from os import getcwd
+from version import WAKE_WORD_PATTERN
 
-now = datetime.datetime.now()
-hour = now.hour
-minute = now.minute
 
-def clear_file():
-    with open(f"{getcwd()}\\input.txt","w") as file:
-        file.truncate(0)
-        
-anubhav = "+919606348280"
+CONTACTS = {"anubhav": "+919606348280"}
+MAX_MESSAGE_LENGTH = 1000
+
+
+def _read_input():
+    with open("input.txt", "r", encoding="utf-8-sig") as file:
+        return file.read().strip().casefold()
+
+
+def _without_wake_word(text):
+    return re.sub(WAKE_WORD_PATTERN, "", text).strip()
+
+
+def _wait_for_response(previous):
+    while True:
+        response = _read_input()
+        if response and response != previous:
+            return _without_wake_word(response)
+        time.sleep(0.1)
+
 
 def send_msg_wa():
-    speak("who do you want to send sir ?")
-    output_text = ""
-    while True:
-        with open("input.txt","r") as file:
-            input_text = file.read().lower() 
-        if input_text != output_text:
-            output_text = input_text
-            if output_text.startswith("send to") or output_text.startswith("send tu"):
-                output_text.replace("send to","")
-                output_text.replace("send tu","")
-                if "anubhav" in output_text:
-                    speak("By the way what is the message , sir ?")
-                    while True:
-                       with open("input.txt","r") as file:
-                          input_text = file.read().lower() 
-                          if input_text != output_text:
-                              output_text = input_text
-                              if output_text.startswith("message is"):
-                                  message =  output_text.replace("message is","")
-                                  kit.sendwhatmsg(anubhav,message,hour,minute+1)
-                                  speak("message send successfully")
-                                 
+    previous = _read_input()
+    speak("WhatsApp is ready for one supported contact, Anubhav. Say send to Anubhav, or cancel message.")
+    response = _wait_for_response(previous)
+    response = response.rstrip(".,!? ")
+    if response in {"cancel message", "cancel"}:
+        speak("I cancelled the WhatsApp message.")
+        return
+    if not response.startswith("send to "):
+        speak("I couldn't identify the recipient. No message was sent.")
+        return
 
+    contact_name = response.removeprefix("send to ").strip()
+    phone_number = CONTACTS.get(contact_name)
+    if phone_number is None:
+        speak("That contact is not in SARA's supported contact list. No message was sent.")
+        return
+
+    previous = _read_input()
+    speak("What message would you like to send?")
+    response = _wait_for_response(previous)
+    if not response.startswith("message is "):
+        speak("I didn't receive a message in the expected format. No message was sent.")
+        return
+    message = response.removeprefix("message is ").strip()
+    if not message or len(message) > MAX_MESSAGE_LENGTH:
+        speak(f"Messages must contain 1 to {MAX_MESSAGE_LENGTH} characters. No message was sent.")
+        return
+
+    previous = _read_input()
+    speak(f"Review the message for {contact_name.title()}: {message}. Say confirm send to send it, or cancel message.")
+    confirmation = _wait_for_response(previous).rstrip(".,!? ")
+    if confirmation != "confirm send":
+        speak("I cancelled the WhatsApp message. Nothing was sent.")
+        return
+
+    send_time = datetime.datetime.now() + datetime.timedelta(minutes=1)
+    kit.sendwhatmsg(phone_number, message, send_time.hour, send_time.minute)
+    speak(f"WhatsApp accepted the message for {contact_name.title()}.")
