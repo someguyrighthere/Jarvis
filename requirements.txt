@@ -37,3 +37,4 @@ comtypes
 pycaw
 piper-tts
 Pillow
+pywebview==6.2.1

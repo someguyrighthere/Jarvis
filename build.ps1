@@ -28,6 +28,12 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller." }
 if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled avatar renderer." }
 & $python -B .\prepare_installer.py .\dist\JarvisPackage
 if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the bundled offline voice." }
+$webviewBootstrapper = Join-Path $PSScriptRoot "dist\JarvisPackage\MicrosoftEdgeWebview2Setup.exe"
+Invoke-WebRequest -UseBasicParsing -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $webviewBootstrapper
+$signature = Get-AuthenticodeSignature -LiteralPath $webviewBootstrapper
+if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notmatch "O=Microsoft Corporation") {
+    throw "The WebView2 bootstrapper does not have a valid Microsoft signature."
+}
 $pyinstallerRoot = Join-Path $env:TEMP ("Jarvis-PyInstaller-" + [guid]::NewGuid().ToString("N"))
 $pyinstallerWork = Join-Path $pyinstallerRoot "build"
 $pyinstallerDist = Join-Path $pyinstallerRoot "dist"

@@ -25,6 +25,7 @@ CATALOG = (
     ("voice", "Piper voice files", "Local Alba voice model and configuration."),
     ("node", "Node.js / npm", "Avatar renderer setup and Forge's Pyright tools."),
     ("renderer", "3D avatar renderer", "Pinned Three.js dependencies from package-lock.json."),
+    ("webview", "Microsoft Edge WebView2 Runtime", "Desktop window renderer; installed automatically by SARA setup if missing. Does not require Chrome."),
     ("forge", "Forge 1.4.1+", "Coding agent with SARA's workspace restrictions."),
     ("forge-model", "Forge AI model", "Configured Forge model, or qwen3:8b (several GB)."),
     ("forge-python", "Forge external Python", "Optional Python 3.12 installation for Forge's Python/browser tools."),
@@ -36,7 +37,24 @@ CATALOG = (
 OPTIONAL_COMPONENTS = {"chrome", "ollama", "sara-model", "node", "forge", "forge-model",
                        "forge-python", "pyright", "playwright", "sandbox", "bubblewrap"}
 WINGET = {"python": "Python.Python.3.12", "forge-python": "Python.Python.3.12", "chrome": "Google.Chrome",
-          "ollama": "Ollama.Ollama", "node": "OpenJS.NodeJS.LTS"}
+          "ollama": "Ollama.Ollama", "node": "OpenJS.NodeJS.LTS", "webview": "Microsoft.EdgeWebView2Runtime"}
+
+
+def webview_runtime_installed() -> bool:
+    if os.name != "nt":
+        return False
+    import winreg
+    key = r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for view in (winreg.KEY_WOW64_32KEY, winreg.KEY_WOW64_64KEY):
+            try:
+                with winreg.OpenKey(hive, key, 0, winreg.KEY_READ | view) as registry:
+                    version, _ = winreg.QueryValueEx(registry, "pv")
+                    if isinstance(version, str) and version and version != "0.0.0.0":
+                        return True
+            except FileNotFoundError:
+                continue
+    return False
 
 
 def executable(name: str) -> str | None:
@@ -100,6 +118,9 @@ def python_path(forge: bool = False) -> str:
 
 
 def inspect_component(component: str) -> tuple[str, str]:
+    if component == "webview":
+        return ("installed", "Desktop WebView2 runtime available.") if webview_runtime_installed() else (
+            "missing", "Install Microsoft Edge WebView2 Runtime to open the desktop HUD.")
     if component == "python":
         if getattr(sys, "frozen", False):
             return "bundled", "Included in SARA; no external Python is needed for the assistant."

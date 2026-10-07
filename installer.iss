@@ -1,5 +1,5 @@
 #define AppName "SARA"
-#define AppVersion "2.0.0"
+#define AppVersion "2.0.1"
 #define AppPublisher "SARA"
 #define AppExeName "Jarvis.exe"
 #ifndef PackageRoot
@@ -37,15 +37,28 @@ Source: "{#PackageRoot}\voice_state.txt"; DestDir: "{app}"; Flags: onlyifdoesnte
 Source: "{#PackageRoot}\models\piper\en_GB-alba-medium.onnx"; DestDir: "{app}\models\piper"; Flags: ignoreversion
 Source: "{#PackageRoot}\models\piper\en_GB-alba-medium.onnx.json"; DestDir: "{app}\models\piper"; Flags: ignoreversion
 Source: "{#PackageRoot}\models\piper\PIPER-VOICE-NOTICE.txt"; DestDir: "{app}\models\piper"; Flags: ignoreversion
+Source: "{#PackageRoot}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch SARA"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch SARA"; Flags: nowait postinstall skipifsilent; Check: WebView2Installed
 
 [Code]
+function WebView2Installed: Boolean;
+var
+  Version: String;
+  Key: String;
+begin
+  Key := 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+  Result := ((RegQueryStringValue(HKLM32, Key, 'pv', Version) or
+              RegQueryStringValue(HKLM64, Key, 'pv', Version) or
+              RegQueryStringValue(HKCU, Key, 'pv', Version)) and
+             (Version <> '') and (Version <> '0.0.0.0'));
+end;
+
 procedure AddComponent(var Components: String; Component: String);
 begin
   if Components <> '' then
@@ -60,6 +73,21 @@ var
 begin
   if CurStep <> ssPostInstall then
     Exit;
+  if not WebView2Installed then begin
+    WizardForm.StatusLabel.Caption := 'Installing Microsoft Edge WebView2 Runtime for the desktop window...';
+    ExtractTemporaryFile('MicrosoftEdgeWebview2Setup.exe');
+    if not Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install',
+                '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
+      MsgBox('WebView2 setup could not start. Install Microsoft Edge WebView2 Runtime before opening SARA.',
+             mbError, MB_OK);
+      Exit;
+    end;
+    if not WebView2Installed then begin
+      MsgBox('WebView2 setup did not finish successfully. Restart Windows or install Microsoft Edge WebView2 Runtime before opening SARA.',
+             mbError, MB_OK);
+      Exit;
+    end;
+  end;
   Components := '';
   if WizardIsTaskSelected('chrome') then AddComponent(Components, 'chrome');
   if WizardIsTaskSelected('ollama') then AddComponent(Components, 'ollama');

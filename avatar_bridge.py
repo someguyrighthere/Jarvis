@@ -71,6 +71,7 @@ class AvatarServer(ThreadingHTTPServer):
         self.telemetry = Telemetry(PROJECT_ROOT)
         self.updates = UpdateService()
         self.dependencies = DependencyService()
+        self.assistant = None
 
     def server_close(self):
         self.updates.close()
@@ -96,9 +97,10 @@ class AvatarHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         update_action = self.path == "/api/updates/check"
+        assistant_action = self.path.removeprefix("/api/assistant/") if self.path in {"/api/assistant/start", "/api/assistant/stop"} else None
         refresh = self.path == "/api/dependencies/refresh"
         dependency = self.path.removeprefix("/api/dependencies/install/") if self.path.startswith("/api/dependencies/install/") else None
-        if not update_action and not refresh and dependency is None:
+        if not update_action and not refresh and dependency is None and assistant_action is None:
             self.send_error(404)
             return
         origin = f"http://127.0.0.1:{self.server.server_port}"
@@ -112,18 +114,31 @@ class AvatarHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": "Expected an empty JSON object."}, 400)
             return
         try:
-            if update_action:
+            if assistant_action is not None:
+                if self.server.assistant is None:
+                    raise ValueError("Assistant controls are available only in the SARA desktop app.")
+                if assistant_action == "start":
+                    self.server.assistant.start()
+                else:
+                    self.server.assistant.stop()
+                payload = self.server.assistant.status()
+            elif update_action:
                 self.server.updates.start("check")
                 payload = self.server.updates.status()
             else:
                 self.server.dependencies.start(dependency)
                 payload = self.server.dependencies.status()
-        except ValueError as error:
+        except (ValueError, RuntimeError, OSError) as error:
+            LOGGER.warning("HUD action failed: %s", error)
             self.send_json({"error": str(error)}, 409)
             return
         self.send_json(payload, 202)
 
     def do_GET(self) -> None:
+        if self.path == "/api/assistant":
+            self.send_json(self.server.assistant.status() if self.server.assistant is not None
+                           else {"supported": False, "running": False, "error": None})
+            return
         if self.path == "/api/updates":
             self.send_json(self.server.updates.status())
             return

@@ -50,6 +50,10 @@
     .track { height: 4px; background: #19333e; border-radius: 4px; overflow: hidden; }
     .fill { display: block; height: 100%; width: 0; background: #75e9ed; transition: width .5s; }
     .warning { color: #efb56a; }
+    #assistant-controls { margin-top: 10px; }
+    #assistant-controls button { background: #102b37; color: #edf7f5; border: 1px solid #75e9ed; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+    #assistant-controls button:disabled { opacity: .5; cursor: not-allowed; }
+    #assistant-controls button:focus-visible { outline: 2px solid #edf7f5; outline-offset: 3px; }
     footer { right: 350px; }
     @media (max-height: 760px) {
       .telemetry { gap: 8px; }
@@ -87,7 +91,13 @@
       <dt>CPU</dt><dd id="sara-cpu">--</dd>
       <dt>Memory</dt><dd id="sara-memory">--</dd>
       <dt>Uptime</dt><dd id="sara-uptime">--</dd>
-    </dl><p class="detail" id="sara-detail"></p></section>
+    </dl><p class="detail" id="sara-detail"></p>
+      <div id="assistant-controls" hidden>
+        <button id="start-assistant" type="button">START</button>
+        <button id="stop-assistant" type="button">STOP</button>
+        <p id="assistant-message" class="detail" role="status" aria-live="polite"></p>
+      </div>
+    </section>
     <section class="card"><h2>COMPUTER / SYSTEM</h2>
       <div class="hardware"><h3>CPU</h3><div class="reading" id="cpu-value">--</div><div class="track"><span class="fill" id="cpu-bar"></span></div><p class="detail" id="cpu-detail">Waiting for readings</p></div>
       <div class="hardware"><h3>RAM</h3><div class="reading" id="ram-value">--</div><div class="track"><span class="fill" id="ram-bar"></span></div><p class="detail" id="ram-detail">Waiting for readings</p></div>
@@ -126,5 +136,6 @@
   <script type="module" src="./avatar.js"></script>
   <script type="module" src="./updates.js"></script>
   <script type="module" src="./dependencies.js"></script>
+  <script type="module" src="./assistant.js"></script>
 </body>
 </html>

@@ -29,6 +29,7 @@ analysis = Analysis(
         ("avatar_web/speech_motion.mjs", "avatar_web"),
         ("avatar_web/updates.js", "avatar_web"),
         ("avatar_web/dependencies.js", "avatar_web"),
+        ("avatar_web/assistant.js", "avatar_web"),
         ("requirements.txt", "."),
         ("avatar_web/node_modules/three/build", "avatar_web/node_modules/three/build"),
         ("avatar_web/node_modules/three/examples/jsm", "avatar_web/node_modules/three/examples/jsm"),

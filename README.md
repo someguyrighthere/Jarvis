@@ -9,6 +9,13 @@
 **Welcome to Sara!**  
 Sara is a desktop AI assistant designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
 
+### Version 2.0.1
+- The animated HUD is now the main native desktop window, using embedded WebView2
+  instead of opening a browser tab or the legacy Tk panel.
+- Opening SARA starts the assistant automatically; closing the window stops its
+  owned assistant process tree and local server. Start/Stop controls are in the SARA card.
+- Setup installs WebView2 if missing using Microsoft's signed bootstrapper.
+
 ### Version 2.0.0
 - Full-body SARA avatar with blinking, voice-driven mouth motion, conversational
   hand gestures, subtle weight shifts, and an invisible shadow-receiving floor.
@@ -52,9 +59,9 @@ To start the assistant, run:
 python jarvis.py
 ```
 
-To open the visual control panel, run:
+To open SARA's desktop app, run:
 ```powershell
-py -3.12 ui.py
+py -3.12 launcher.py
 ```
 
 ### Selected 3D avatar
@@ -71,7 +78,8 @@ a black jacket, white shirt, and trousers. The FBX references texture paths
 from its author's computer; importers must resolve those filenames against
 the supplied `Textures` folder.
 
-The HUD's **Open 3D Sara** button opens a local browser window with the avatar.
+The installed app opens the avatar in its own desktop window, with no browser
+tab or address bar. The legacy panel is available only by running `ui.py` explicitly.
 Install its local renderer once with `npm ci` inside `avatar_web`.
 No avatar or speech data is sent to a cloud rendering service.
 SARA stands on an invisible floor that only receives a subtle, soft-edged shadow;
@@ -144,8 +152,9 @@ During Piper playback, a
 40 ms audio-volume envelope drives the `aa` mouth shape; this is audio-reactive
 animation, not phoneme-aligned viseme lip-sync. Windows SAPI fallback has no
 audio envelope and therefore does not animate the mouth. Speech interruption
-and playback completion close the mouth. The existing Tk HUD remains the
-assistant's control panel, and closing it shuts down the local avatar server.
+and playback completion close the mouth. The desktop window owns assistant
+startup/shutdown and the local avatar server. Missing Chrome and process failures
+are shown in the SARA card; use Dependencies, then Start, to retry.
 
 The avatar's right-side cards show live Ollama/model availability, SARA's
 activity, voice, avatar/connection status, assistant-process CPU/RAM/uptime,
@@ -163,7 +172,7 @@ GitHub release/version matching. The update button only appears when a newer
 release is available and opens the official release page; it does not install automatically.
 Update-check errors remain visible in the status text.
 Dependencies opens a separate checklist for Chrome, Ollama, SARA/Forge models,
-Python and declared packages, Piper voice files, Node/npm, the pinned avatar
+Python and declared packages, Piper voice files, WebView2, Node/npm, the pinned avatar
 renderer, Forge 1.4.1+, and optional Pyright/Playwright and WSL/Ubuntu/Bubblewrap
 tools. Select **Refresh Status**, then confirm each desired **Install** separately.
 The checklist separates core components from optional installs. Chrome, Ollama,
@@ -213,6 +222,11 @@ On Windows, install Inno Setup, then run:
 ```
 
 The installer is also built automatically by `.github/workflows/release.yml` whenever a `v*` tag is pushed.
+It provisions the Microsoft Edge WebView2 Runtime if absent (an internet
+connection is required). The bootstrapper's Microsoft signature is checked during
+the build. Chrome remains optional and is only needed for speech recognition,
+not for displaying the app. External release links open in the default browser;
+the avatar and app controls remain in the native SARA window.
 
 The build stages the Alba model/configuration and attribution notice alongside
 the executable. The installer includes those files, the packaged Python runtime
@@ -232,7 +246,11 @@ require Windows approval/restart. Setup failures are reported and logged to
 `dependency-setup.log` in the install directory; SARA itself remains installed.
 An incompatible public Forge installer is rejected rather than silently used.
 
-Use **Start** and **Stop** in the panel to control Sara. The panel shows the current Ollama model, voice, and recent conversation log. Say “Sara” before a command to address the assistant.
+Use **Start** and **Stop** in the SARA telemetry card to control the assistant.
+The app starts it when the HUD loads, and stops it when the window closes.
+Startup/exit problems appear in that card. Detailed diagnostic logs are
+`desktop-runtime.log` and `assistant-runtime.log` in the app directory.
+Say “Sara” before a command to address the assistant.
 
 Sara ignores ordinary microphone transcripts while speaking and for one second afterward to avoid responding to her own voice. Wait until she finishes before replying; spoken stop commands still interrupt playback. Conversational replies are accepted without the wake word for 25 seconds after her answer finishes.
 

@@ -12,9 +12,9 @@ def main():
 
         return
 
-    from ui import main as hud_main
+    from desktop_app import main as hud_main
 
-    hud_main()
+    return hud_main()
 
 
 if __name__ == "__main__":

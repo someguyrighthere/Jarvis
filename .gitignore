@@ -12,3 +12,5 @@ __pycache__/
 /avatar_speech.json
 /.venv*/
 /dependency-setup.log
+/assistant-runtime.log
+/desktop-runtime.log
