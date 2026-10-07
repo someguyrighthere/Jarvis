@@ -10,6 +10,9 @@ PENDING_PATH = project_workflow.LOCAL_DATA_DIR / "tool_proposal.json"
 MAX_TRIGGERS = 4
 MAX_RESPONSE_CHARACTERS = 4000
 RESERVED_TRIGGERS = {
+    "app tree",
+    "apptree",
+    "app-tree",
     "show project proposal",
     "approve project",
     "reject project",
@@ -133,6 +136,15 @@ def create_tool_project(request):
     return project_workflow.create_project_proposal(request, tool_mode=True)
 
 
+def tool_trigger_conflict(manifest):
+    for path in TOOLS_DIR.glob("*.json") if TOOLS_DIR.is_dir() else ():
+        enabled = project_workflow._read_json(path)
+        enabled_manifest = enabled.get("manifest") if enabled else None
+        if enabled_manifest and set(enabled_manifest.get("triggers", [])) & set(manifest["triggers"]):
+            return f"A trigger phrase is already used by Sara tool '{enabled_manifest.get('name', path.stem)}'."
+    return None
+
+
 def propose_project_as_tool(project_name):
     if project_workflow._read_json(project_workflow.PENDING_PATH):
         return "Finish the pending project proposal before proposing a saved project as a tool."
@@ -144,11 +156,9 @@ def propose_project_as_tool(project_name):
     manifest, error = _manifest_from_project(project)
     if error:
         return error
-    for path in TOOLS_DIR.glob("*.json") if TOOLS_DIR.is_dir() else ():
-        enabled = project_workflow._read_json(path)
-        enabled_manifest = enabled.get("manifest") if enabled else None
-        if enabled_manifest and set(enabled_manifest.get("triggers", [])) & set(manifest["triggers"]):
-            return f"A trigger phrase is already used by Sara tool '{enabled_manifest.get('name', path.stem)}'."
+    conflict = tool_trigger_conflict(manifest)
+    if conflict:
+        return conflict
 
     project_fingerprint = project_workflow._project_fingerprint(project)
     project_path = project_workflow.PROJECTS_DIR / project_name
@@ -205,11 +215,9 @@ def approve_tool():
     destination = TOOLS_DIR / f"{manifest['name']}.json"
     if destination.exists():
         return f"A Sara tool named '{manifest['name']}' is already enabled."
-    for path in TOOLS_DIR.glob("*.json"):
-        enabled = project_workflow._read_json(path)
-        enabled_manifest = enabled.get("manifest") if enabled else None
-        if enabled_manifest and set(enabled_manifest.get("triggers", [])) & set(manifest["triggers"]):
-            return f"A trigger phrase is already used by Sara tool '{enabled_manifest.get('name', path.stem)}'."
+    conflict = tool_trigger_conflict(manifest)
+    if conflict:
+        return conflict
 
     project_workflow._write_json(
         destination,
@@ -266,33 +274,57 @@ def run_registered_tool(text):
         manifest, error = validate_tool_manifest(record.get("manifest"), record.get("project", ""))
         if error or not any(query == trigger or query.startswith(trigger + " ") for trigger in manifest["triggers"]):
             continue
-        project, error = project_workflow._load_saved_project(record["project"])
-        if error:
-            return f"I couldn't run Sara tool '{manifest['name']}': {error}"
-        if project_workflow._project_fingerprint(project) != record.get("fingerprint"):
-            return f"Sara tool '{manifest['name']}' is disabled because its source changed. Review it and approve it again."
-        source_manifest, error = _manifest_from_project(project)
-        if error or source_manifest != manifest:
-            return f"Sara tool '{manifest['name']}' is disabled because its manifest changed."
-        result = project_workflow._run_project_in_sandbox(
-            project,
-            "tool.py",
-            tool_input={"request": text[:1000]},
-        )
-        prefix = "Project finished in the WSL sandbox. Output: "
-        if not result.startswith(prefix):
-            return result
-        try:
-            response = json.loads(result[len(prefix):])
-        except json.JSONDecodeError:
-            return f"Sara tool '{manifest['name']}' returned invalid JSON."
-        if not isinstance(response, dict) or set(response) != {"text"}:
-            return f"Sara tool '{manifest['name']}' returned an invalid response."
-        answer = response["text"]
-        if not isinstance(answer, str) or not answer.strip() or len(answer) > MAX_RESPONSE_CHARACTERS:
-            return f"Sara tool '{manifest['name']}' returned invalid or oversized text."
-        return answer.strip()
+        _, answer = execute_tool_record(record, text)
+        return answer
     return None
+
+
+def registered_tool_records():
+    records = []
+    for path in sorted(TOOLS_DIR.glob("*.json")) if TOOLS_DIR.is_dir() else ():
+        record = project_workflow._read_json(path)
+        manifest, error = validate_tool_manifest(
+            record.get("manifest") if record else None, record.get("project", "") if record else "",
+        )
+        if not error:
+            project, error = project_workflow._load_saved_project(record["project"])
+            if not error and project_workflow._project_fingerprint(project) == record.get("fingerprint"):
+                source, error = _manifest_from_project(project)
+                if not error and source == manifest:
+                    records.append(record)
+    return records
+
+
+def execute_tool_record(record, text):
+    manifest, error = validate_tool_manifest(record.get("manifest"), record.get("project", ""))
+    if error:
+        return False, f"Tool manifest rejected: {error}"
+    project, error = project_workflow._load_saved_project(record["project"])
+    if error:
+        return False, f"I couldn't run Sara tool '{manifest['name']}': {error}"
+    if project_workflow._project_fingerprint(project) != record.get("fingerprint"):
+        return False, f"Sara tool '{manifest['name']}' is disabled because its source changed. Review it and approve it again."
+    source_manifest, error = _manifest_from_project(project)
+    if error or source_manifest != manifest:
+        return False, f"Sara tool '{manifest['name']}' is disabled because its manifest changed."
+    result = project_workflow._run_project_in_sandbox(
+        project,
+        "tool.py",
+        tool_input={"request": text[:1000]},
+    )
+    prefix = "Project finished in the WSL sandbox. Output: "
+    if not result.startswith(prefix):
+        return False, result
+    try:
+        response = json.loads(result[len(prefix):])
+    except json.JSONDecodeError:
+        return False, f"Sara tool '{manifest['name']}' returned invalid JSON."
+    if not isinstance(response, dict) or set(response) != {"text"}:
+        return False, f"Sara tool '{manifest['name']}' returned an invalid response."
+    answer = response["text"]
+    if not isinstance(answer, str) or not answer.strip() or len(answer) > MAX_RESPONSE_CHARACTERS:
+        return False, f"Sara tool '{manifest['name']}' returned invalid or oversized text."
+    return True, answer.strip()
 
 
 def handle_tool_command(text):

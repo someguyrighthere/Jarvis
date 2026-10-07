@@ -250,6 +250,7 @@ class CommandLoopIntegrationTests(unittest.TestCase):
                 "handle_system_command", "handle_tool_command", "handle_extension_command",
                 "run_registered_tool", "handle_project_command", "handle_forge_command",
                 "_pop_tool_offer", "pop_capability_gap", "observe_user_detail",
+                "route_registered_tool_request",
             ):
                 calls[name] = stack.enter_context(patch.object(co_brain, name, return_value=None))
             stack.enter_context(patch.object(co_brain, "requires_confirmation", return_value=False))
@@ -260,6 +261,9 @@ class CommandLoopIntegrationTests(unittest.TestCase):
             calls["speak"] = stack.enter_context(patch.object(co_brain, "speak"))
             calls["remember_note"] = stack.enter_context(patch.object(co_brain, "remember_note"))
             calls["Main_Brain"] = stack.enter_context(patch.object(co_brain, "Main_Brain", return_value="Normal reply."))
+            stack.enter_context(patch.object(
+                co_brain, "route_conversation_request", side_effect=lambda request, answerer: answerer(request),
+            ))
             with self.assertRaises(KeyboardInterrupt):
                 co_brain.check_inputs()
         return calls, file
@@ -280,7 +284,7 @@ class CommandLoopIntegrationTests(unittest.TestCase):
 
     def test_logged_recognition_variants_never_reach_the_model(self):
         for command, expected in (
-            ("app tree help", "Include the word test"),
+            ("app tree help", "Real app tree"),
             ("apptree test help", "mock app-tree stage"),
             ("apptree test whether failed", "not a supported mock command"),
         ):

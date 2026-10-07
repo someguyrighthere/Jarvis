@@ -73,7 +73,7 @@ class ForgeWorkflowTests(unittest.TestCase):
         self.assertEqual(args[0][0:2], ["C:\\Forge\\forge.exe", "--ask"])
         self.assertEqual(kwargs["cwd"], Path(pending["workspace"]))
         self.assertNotIn("SARA_TEST_TOKEN", kwargs["env"])
-        self.assertEqual(kwargs["env"]["FORGE_HOME"], str(self.forge_homes / pending["project"]))
+        self.assertEqual(Path(kwargs["env"]["FORGE_HOME"]).resolve(), (self.forge_homes / pending["project"]).resolve())
         self.assertEqual(kwargs["env"]["FORGE_WORKSPACE_ROOT"], str(Path(pending["workspace"])))
         self.assertEqual(kwargs["env"]["FORGE_PYTHON"],
                          os.environ.get("FORGE_PYTHON", forge_workflow.sys.executable))

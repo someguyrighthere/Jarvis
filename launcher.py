@@ -2,6 +2,11 @@ import sys
 
 
 def main():
+    if "--app-tree" in sys.argv:
+        from experiments.typed_app_tree_test import main as tree_main
+
+        return tree_main(live=True)
+
     if "--app-tree-test" in sys.argv:
         from experiments.typed_app_tree_test import main as test_main
 

@@ -217,6 +217,90 @@ without the source tree or Python, set the opt-in variables above and run:
 The normal desktop shortcut opens the existing HUD. The isolated previews and
 local-model tests remain available in `experiments`.
 
+### Real app tree (2.1.0)
+
+The normal assistant now routes conversational requests through local Ollama
+(`qwen3:8b` by default) to an answer, a registered real capability, or an
+approval-gated Forge build proposal. Answers still use SARA's existing personality,
+conversation context, and saved personal memory. Model text never executes a
+command or grants approval. Existing specialized commands remain available.
+Common reminders, tasks, weather, and working-folder file commands from a
+wake-word/follow-up request use the real routing path directly.
+
+For typed access, select **SARA App Tree** in the Start menu, or run:
+
+```powershell
+& "$env:LOCALAPPDATA\JARVIS\Jarvis.exe" --app-tree
+```
+
+There is no mock opt-in required for this real window. It can create actual
+reminders, tasks, and files **only after approval**. The older `--app-tree-test`
+window and `app tree test` commands remain mock-only and separate.
+
+Examples (spoken with SARA's wake word, or typed without it):
+
+```text
+app tree ask remind me to call Alex tomorrow at 9 AM
+app tree approve
+app tree worked
+app tree ask weather in Boston
+app tree approve
+app tree worked
+```
+
+Registered built-ins: local time, weather for an explicitly named city, local
+reminder creation/listing, task creation/listing, and safe file creation/renaming
+in SARA's working folder. Time is read-only and immediate; the other real routes
+require explicit `app tree approve` (or the Approve button). Weather review
+discloses the city and external service. Missing/invalid arguments prompt for
+details; the model cannot invent arguments, paths, or a notification destination.
+The file handlers retain their no-overwrite and working-folder restrictions.
+
+Reminders require an exact local time and support today, tomorrow, or
+`YYYY-MM-DD`; omitted dates use the next occurrence. A time without AM/PM must
+be a 24-hour `HH:MM` time. Ambiguous requests such as "tomorrow" without a time
+do not schedule anything. Reminders persist separately in
+`%LOCALAPPDATA%\Sara\reminders.sqlite3`; SARA must be running to announce them.
+Overdue reminders are delivered when the assistant or real typed window next
+runs. These are local spoken reminders, not phone notifications or an
+always-running Windows background service.
+
+#### Missing capabilities and Forge
+
+1. Request an unsupported capability. SARA proposes a Forge tool but does not
+   start a build. Approve with `app tree approve build`.
+2. Forge 1.4.1+ builds in its existing restricted, private workspace and asks
+   before edits. Its shell, code execution, and web tools remain disabled.
+3. When it finishes, use `app tree review build`, inspect the full proposed
+   source, then `app tree approve project` to save it.
+4. Use the **separate** `app tree approve run` command for the first execution.
+   A generic approval does not satisfy this first-run gate.
+5. Valid sandbox output enables the tool for future routing. Only your later
+   `app tree worked` confirmation records the successful workflow.
+
+Generated tools must provide `tool.py` and a validated `sara_tool.json` manifest.
+They read a JSON request from stdin and return a JSON `text` response. They run
+only in the existing Ubuntu/WSL Bubblewrap sandbox: no network, user files,
+Windows drives, installed dependencies, or persistent output; execution is
+bounded to 15 seconds. Thus a generated helper can perform computations but
+cannot organize Downloads or send messages by bypassing these restrictions.
+Failures, malformed output, modified source, or conflicting triggers do not
+enable or learn an app. Approved tools are discoverable immediately and on
+restart, with a fresh approval required for each app-tree invocation.
+
+Confirmed real routes are stored in
+`%LOCALAPPDATA%\Sara\confirmed_workflows.sqlite3`, never the mock store or personal
+memory. Categories, capability IDs, source fingerprints, and counts help future
+model routing; they do not store raw requests or grant permissions. Generated
+source must still match its reviewed fingerprint. `app tree memory` inspects
+these records; `app tree clear workflows` clears only real workflow history.
+`app tree failed` does not learn, and `app tree not sure` leaves the result
+unconfirmed. Failed saves remain retryable without rerunning the action.
+Pending operation approvals and success confirmations stay session-only.
+`app tree reset` discards pending decisions, but does not undo completed actions
+or stop a running Forge build. Existing Forge/project commands can inspect
+persisted builds after an app-tree session ends.
+
 ### Selected 3D avatar
 The selected avatar is Microsoft Rocketbox **Business Female 01**, stored in
 `assets/avatars/business-female-01/`. The facial FBX and all seven TGA textures

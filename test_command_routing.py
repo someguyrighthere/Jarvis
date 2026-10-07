@@ -16,12 +16,16 @@ class CommandRoutingTests(unittest.TestCase):
                 "handle_extension_command", "run_registered_tool", "handle_project_command",
                 "handle_forge_command", "_pop_tool_offer", "pop_capability_gap",
                 "handle_mock_app_tree_command", "resolve_learning_request",
+                "handle_real_app_tree_command", "route_registered_tool_request",
             ):
                 stack.enter_context(patch.object(co_brain, name, return_value=None))
             stack.enter_context(patch.object(co_brain, "should_propose_extension", return_value=False))
             stack.enter_context(patch.object(co_brain, "consume_approval", return_value=False))
             stack.enter_context(patch.object(co_brain, "requires_confirmation", return_value=False))
             stack.enter_context(patch.object(co_brain, "observe_user_detail", return_value=None))
+            stack.enter_context(patch.object(
+                co_brain, "route_conversation_request", side_effect=lambda request, answerer: answerer(request),
+            ))
             stack.enter_context(patch.object(co_brain, "set_voice_state"))
             stack.enter_context(patch.object(co_brain, "clear_file"))
             stack.enter_context(patch.object(co_brain, "_extend_follow_up_window"))

@@ -1,5 +1,5 @@
 #define AppName "SARA"
-#define AppVersion "2.0.3"
+#define AppVersion "2.1.0"
 #define AppPublisher "SARA"
 #define AppExeName "Jarvis.exe"
 #ifndef PackageRoot
@@ -42,6 +42,7 @@ Source: "{#PackageRoot}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\sara.ico"
+Name: "{group}\SARA App Tree"; Filename: "{app}\{#AppExeName}"; Parameters: "--app-tree"; WorkingDir: "{app}"; IconFilename: "{app}\sara.ico"
 Name: "{autodesktop}\SARA"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\sara.ico"
 
 [Run]

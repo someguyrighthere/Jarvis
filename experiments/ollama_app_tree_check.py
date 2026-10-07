@@ -39,7 +39,7 @@ _INTENT_SCHEMA = {
 
 
 class LocalOllamaPlanner:
-    def __init__(self, model: str | None = None, endpoint: str | None = None):
+    def __init__(self, model: str | None = None, endpoint: str | None = None, *, live: bool = False):
         self.model = model or os.environ.get(
             "SARA_APP_TREE_OLLAMA_MODEL",
             os.environ.get("OLLAMA_MODEL", "llama3.2"),
@@ -58,6 +58,7 @@ class LocalOllamaPlanner:
         if not self.model.strip():
             raise ValueError("An Ollama model name is required.")
         self.last_attempt_count = 0
+        self.live = live
 
     def choose(self, request: str, available_capabilities: dict[str, str]) -> Intent:
         system_prompt = (
@@ -93,6 +94,19 @@ class LocalOllamaPlanner:
             f"Available capabilities: {json.dumps(available_capabilities, ensure_ascii=True)}\n"
             f"User request: {request}"
         )
+        if self.live:
+            system_prompt = system_prompt.replace(
+                "Treat listed capabilities as fixed mock executors, not live integrations.",
+                "These are real registered integrations. Select only listed capability IDs. "
+                "Never execute anything or grant approval; the host parses the ORIGINAL request "
+                "and asks the user to approve actions. Use answer for ordinary conversation.",
+            )
+            system_prompt += (
+                "\nMissing arguments are NOT a missing app. If a reminder lacks a time, or weather "
+                "lacks a city, still select reminders.create or weather.lookup; the host will ask "
+                "for details before preparing approval. Do not request a new reminder app when "
+                "reminders.create is registered."
+            )
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

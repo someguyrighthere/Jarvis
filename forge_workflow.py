@@ -110,7 +110,7 @@ def _project_slug(request):
     return candidate
 
 
-def start_forge_project(request):
+def start_forge_project(request, *, tool_mode=False):
     global _PROCESS
     request = request.strip()
     if not request:
@@ -173,6 +173,19 @@ def start_forge_project(request):
         "standard-library app. Do not install dependencies or access the network. Do not modify "
         "files outside this workspace. Explain the files created and any checks performed when done."
     )
+    if tool_mode:
+        prompt += (
+            f"\nCreate a reusable SARA tool with name {slug!r}. Required files: tool.py and "
+            "sara_tool.json. tool.py must read one JSON object from stdin containing "
+            "'request', perform the requested computation using Python standard library only, "
+            "and print exactly one JSON object with a nonempty 'text' string. No other stdout. "
+            "It will run in a network-disabled, read-only-source WSL sandbox with no user files "
+            "and a 15-second limit. Do not pretend to access files, accounts, network, or devices. "
+            f"sara_tool.json must contain exactly: name={slug!r}, description (max 300 chars), "
+            "triggers (1-4 unique phrases, each 5-80 chars, at least two words, not built-in "
+            "SARA commands), entrypoint='tool.py', permissions=[]. "
+            "Do not execute the app; the user must review source and approve its first run."
+        )
     env["FORGE_HOME"] = str(forge_home)
     env["FORGE_WORKSPACE_ROOT"] = str(workspace)
     if not getattr(sys, "frozen", False):

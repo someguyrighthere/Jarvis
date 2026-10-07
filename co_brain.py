@@ -60,6 +60,9 @@ from action_workflow import (
     undo_last_action,
 )
 from app_tree_stage import handle_mock_app_tree_command
+from real_app_tree import (
+    handle_real_app_tree_command, route_conversation_request, route_registered_tool_request, route_known_request,
+)
 from version import APP_NAME, WAKE_WORD_PATTERN
 import re
 
@@ -129,6 +132,19 @@ def check_inputs():
             output_text = re.sub(WAKE_WORD_PATTERN, "", output_text).strip()
             output_text = re.sub(r"[.!?]+$", "", output_text).strip()
             if not output_text:
+                continue
+            real_tree_response = handle_real_app_tree_command(output_text, answerer=Main_Brain)
+            if real_tree_response is None and (has_wake_word or is_follow_up):
+                real_tree_response = route_known_request(output_text, Main_Brain)
+            if real_tree_response is not None:
+                set_voice_state("PROCESSING")
+                try:
+                    with open("log.txt", "a", encoding="utf-8") as file:
+                        file.write(f"\nYou : {output_text}\n{APP_NAME.title()} : {real_tree_response}\n")
+                except OSError as error:
+                    speak(f"I could not update the HUD conversation log: {error}")
+                speak(real_tree_response)
+                _extend_follow_up_window()
                 continue
             try:
                 mock_tree_response = handle_mock_app_tree_command(output_text, answerer=Main_Brain)
@@ -218,7 +234,7 @@ def check_inputs():
                 speak(tool_response)
             elif (extension_response := handle_extension_command(output_text)) is not None:
                 speak(extension_response)
-            elif (registered_tool_response := run_registered_tool(output_text)) is not None:
+            elif (registered_tool_response := route_registered_tool_request(output_text)) is not None:
                 speak(registered_tool_response)
             elif (project_response := handle_project_command(output_text)) is not None:
                 speak(project_response)
@@ -351,7 +367,7 @@ def check_inputs():
                     )
                     with open('log.txt','a', encoding='utf-8') as f:
                         f.write('\n'+'You : '+ output_text)
-                        response = Main_Brain(output_text)
+                        response = route_conversation_request(output_text, Main_Brain)
                         f.write('\n'+f'{APP_NAME.title()} : '+ response + '\n')
                     speak(response)
                     if learning_proposal:
@@ -446,11 +462,17 @@ def Jarvis():
     t1 = threading.Thread(target=listen)
     t2 = threading.Thread(target=check_inputs)
     t3 = threading.Thread(target=watch_for_stop_commands, daemon=True)
+    from real_reminders import watch_reminders
+
+    reminder_stop = threading.Event()
+    t4 = threading.Thread(target=watch_reminders, args=(reminder_stop,), daemon=True)
     t1.start()
     t2.start()
     t3.start()
+    t4.start()
     t1.join()
     t2.join()
+    reminder_stop.set()
 
 
 def watch_for_stop_commands():
