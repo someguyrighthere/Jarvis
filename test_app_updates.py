@@ -25,21 +25,21 @@ class AppUpdateTests(unittest.TestCase):
         self.assertFalse(updates.is_newer_version("v1.0.5", "1.0.5.0"))
         self.assertFalse(updates.is_newer_version("", "1.0.5"))
         prefix = updates.RELEASE_ASSET_PREFIX
-        payload = {"tag_name": "v2.0.2", "assets": [
+        payload = {"tag_name": "v2.0.3", "assets": [
             {"name": "jarvis-setup-1.0.4.exe", "browser_download_url": prefix + "v1.0.4/old.exe"},
-            {"name": "jarvis-setup-2.0.2.exe", "browser_download_url": "https://example.com/bad.exe"},
-            {"name": "jarvis-setup-2.0.2.exe", "browser_download_url": prefix + "v2.0.2/new.exe"},
+            {"name": "jarvis-setup-2.0.3.exe", "browser_download_url": "https://example.com/bad.exe"},
+            {"name": "jarvis-setup-2.0.3.exe", "browser_download_url": prefix + "v2.0.3/new.exe"},
         ]}
         with patch.object(updates.requests, "get", return_value=response_for(payload)):
             info = updates.check_release()
-        self.assertEqual(info["url"], prefix + "v2.0.2/new.exe")
-        self.assertEqual(info["name"], "jarvis-setup-2.0.2.exe")
+        self.assertEqual(info["url"], prefix + "v2.0.3/new.exe")
+        self.assertEqual(info["name"], "jarvis-setup-2.0.3.exe")
 
     def test_current_missing_and_invalid_release(self):
         for payload, expected in [
             ({"tag_name": "v2.0.0"}, None),
-            ({"tag_name": "v2.0.2", "assets": []}, "missing"),
-            ({"tag_name": 'v2.0.2"bad'}, "invalid"),
+            ({"tag_name": "v2.0.3", "assets": []}, "missing"),
+            ({"tag_name": 'v2.0.3"bad'}, "invalid"),
         ]:
             with patch.object(updates.requests, "get", return_value=response_for(payload)):
                 if expected is None:

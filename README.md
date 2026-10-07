@@ -9,6 +9,12 @@
 **Welcome to Sara!**  
 Sara is a desktop AI assistant designed to assist with various tasks, from navigating websites to controlling your PC with natural language commands.
 
+### Version 2.0.2
+- Ambient black-to-midnight-blue background with a soft glow behind SARA.
+- The background is rendered separately from the avatar, preserving natural
+  skin tones and suit contrast without a blue overlay.
+- Muted charcoal telemetry cards complement the new background.
+
 ### Version 2.0.1
 - The animated HUD is now the main native desktop window, using embedded WebView2
   instead of opening a browser tab or the legacy Tk panel.
